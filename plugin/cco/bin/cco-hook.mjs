@@ -361,11 +361,11 @@ var JsonStateStore = class {
 
 // packages/core/dist/graph/tags.js
 var DICTIONARY = [
-  { tag: "lang:typescript", keywords: ["typescript", "tsx", "ts "] },
+  { tag: "lang:typescript", keywords: ["typescript", "tsx", "ts"] },
   { tag: "lang:javascript", keywords: ["javascript", "jsx", "node.js", "nodejs"] },
   { tag: "lang:python", keywords: ["python", "django", "flask", "fastapi", "pytest"] },
   { tag: "lang:rust", keywords: ["rust", "cargo"] },
-  { tag: "lang:go", keywords: ["golang", " go "] },
+  { tag: "lang:go", keywords: ["golang", "go"] },
   { tag: "framework:react", keywords: ["react", "jsx", "tsx"] },
   { tag: "framework:vite", keywords: ["vite"] },
   { tag: "framework:nextjs", keywords: ["next.js", "nextjs"] },
@@ -375,7 +375,9 @@ var DICTIONARY = [
   // 'frontend-ui'/'backend-api' match RepoFingerprint.domains verbatim (repo/fingerprint.ts)
   // so an auto-tagged plugin's domain actually lines up with repo-derived affinity tags
   // (graph/builder.ts, profile/compiler.ts, routing/scoring.ts all do `domain:${repo.domains}`).
-  { tag: "domain:frontend-ui", keywords: ["frontend", "ui", "design", "css", "component"] },
+  // 'design' deliberately excluded: too generic ("design a database schema", "design an API")
+  // to be a reliable frontend-only signal even with whole-word matching.
+  { tag: "domain:frontend-ui", keywords: ["frontend", "ui", "css", "component"] },
   { tag: "domain:backend-api", keywords: ["backend", "api", "server", "express", "fastify", "rest api"] },
   { tag: "domain:mobile", keywords: ["ios", "android", "mobile", "swift", "kotlin"] },
   { tag: "domain:infrastructure", keywords: ["kubernetes", "docker", "terraform", "deploy", "ci/cd", "infrastructure"] },
@@ -385,11 +387,25 @@ var DICTIONARY = [
   { tag: "operation:deployment", keywords: ["deploy", "release", "publish"] },
   { tag: "operation:documentation", keywords: ["docs", "documentation", "readme"] }
 ];
+function isWordChar(ch) {
+  return ch !== void 0 && /[a-z0-9]/.test(ch);
+}
+function hasWholeWordMatch(text, keyword) {
+  let from = 0;
+  for (; ; ) {
+    const idx = text.indexOf(keyword, from);
+    if (idx === -1)
+      return false;
+    if (!isWordChar(text[idx - 1]) && !isWordChar(text[idx + keyword.length]))
+      return true;
+    from = idx + 1;
+  }
+}
 function extractTags(name, description, source) {
   const text = ` ${name.toLowerCase()} ${description.toLowerCase()} `;
   const out = [];
   for (const entry of DICTIONARY) {
-    const hit = entry.keywords.some((k) => text.includes(k.toLowerCase()));
+    const hit = entry.keywords.some((k) => hasWholeWordMatch(text, k.toLowerCase()));
     if (hit)
       out.push({ id: entry.tag, confidence: 0.85, source });
   }
