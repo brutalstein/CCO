@@ -52,9 +52,7 @@ async function readJsonIfExists(filePath) {
   try {
     const raw = await fs.readFile(filePath, "utf8");
     return JSON.parse(raw);
-  } catch (err) {
-    if (err.code === "ENOENT")
-      return null;
+  } catch {
     return null;
   }
 }

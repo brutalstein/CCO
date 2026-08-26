@@ -2,7 +2,7 @@ import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { atomicWriteJson, readJsonIfExists } from '@cco/platform';
 import { DefaultBenchmarkRunner, type BenchmarkArm, type BenchmarkRun, type BenchmarkSuite } from '@cco/benchmark';
-import { DefaultCapabilityGraphBuilder, DefaultProfileCompiler, type EvidenceRecord, type OptimizationMode } from '@cco/core';
+import { DefaultCapabilityGraphBuilder, DefaultProfileCompiler, DefaultSafetyValidator, type EvidenceRecord, type OptimizationMode } from '@cco/core';
 import { createContext, printJson } from '../context.js';
 import type { ParsedArgs } from '../argv.js';
 import { flagBool, flagString } from '../argv.js';
@@ -42,7 +42,23 @@ async function runSubcommand(parsed: ParsedArgs): Promise<number> {
   const graph = new DefaultCapabilityGraphBuilder().build(inventory, repo);
   const candidateProfile = new DefaultProfileCompiler().compile({ inventory, graph, repo, config, evidence: { records: [] }, environment: env, mode: candidateMode });
 
+  // Same safety oracle `cco run` enforces before ever launching a real Claude process
+  // with an overlay (apps/cli/src/process-launch.ts) — a benchmark trial is still a real
+  // launch and must not skip the last line of defense against unauthorized enablement or
+  // a leaked `permissions` key.
+  const validator = new DefaultSafetyValidator();
+  const profileIssues = validator.validateProfile(candidateProfile, inventory);
+  if (profileIssues.length > 0) {
+    console.error(`candidate profile failed safety validation: ${profileIssues.map((i) => i.message).join('; ')}`);
+    return 1;
+  }
+
   const candidateOverlay = await ctx.adapter.buildSettingsOverlay({ enabledPluginDelta: candidateProfile.overlay.enabledPlugins, env: {} }, path.join(ctx.store.paths.tmpDir, `bench-${suite.id}.json`));
+  const overlayIssues = validator.validateOverlay(candidateOverlay, inventory);
+  if (overlayIssues.length > 0) {
+    console.error(`candidate overlay failed safety validation: ${overlayIssues.map((i) => i.message).join('; ')}`);
+    return 1;
+  }
   await atomicWriteJson(candidateOverlay.filePath as string, candidateOverlay.json);
 
   const arms: BenchmarkArm[] = [

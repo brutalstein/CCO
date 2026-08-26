@@ -23,8 +23,8 @@ function zipPluginDir(version) {
       '-NoProfile',
       '-NonInteractive',
       '-Command',
-      `Compress-Archive -Path '${pluginDir}\*' -DestinationPath '${zipPath}' -Force`
-    ]);
+      'Compress-Archive -Path (Join-Path $env:CCO_ZIP_SRC "*") -DestinationPath $env:CCO_ZIP_DEST -Force'
+    ], { env: { ...process.env, CCO_ZIP_SRC: pluginDir, CCO_ZIP_DEST: zipPath } });
   } else {
     execFileSync('zip', ['-r', zipPath, '.'], { cwd: pluginDir });
   }

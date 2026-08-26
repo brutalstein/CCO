@@ -257,7 +257,7 @@ export class DefaultProfileCompiler implements ProfileCompiler {
     for (const id2 of prunedIds) overlayEnabled[id2] = false;
 
     const runtimeCapabilityIds = graph.nodes
-      .filter((n) => n.id === n.id && (n.type === 'plugin' ? keptIds.includes(n.id.replace('plugin:', '')) : n.ownerPluginId && keptIds.includes(n.ownerPluginId.replace('plugin:', ''))))
+      .filter((n) => (n.type === 'plugin' ? keptIds.includes(n.id.replace('plugin:', '')) : n.ownerPluginId && keptIds.includes(n.ownerPluginId.replace('plugin:', ''))))
       .map((n) => n.id)
       .sort();
 

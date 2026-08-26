@@ -45,7 +45,7 @@ export async function cmdData(parsed: ParsedArgs): Promise<number> {
   if (sub === 'export') {
     const out = flagString(parsed.flags, 'out');
     if (!out) { console.error('usage: cco data export --out <dir>'); return 2; }
-    await fs.cp(ctx.store.paths.stateDir, path.join(out, 'state'), { recursive: true });
+    await fs.cp(ctx.store.paths.stateDir, path.join(out, 'state'), { recursive: true }).catch(() => undefined);
     await fs.cp(ctx.store.paths.configDir, path.join(out, 'config'), { recursive: true }).catch(() => undefined);
     console.log(`exported to ${out}`);
     return 0;

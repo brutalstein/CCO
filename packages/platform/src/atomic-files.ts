@@ -25,12 +25,14 @@ export async function atomicWriteJson(filePath: string, value: unknown): Promise
   await atomicWriteFile(filePath, JSON.stringify(value, null, 2) + '\n');
 }
 
+// Fail-open for any read/parse error (missing file, corrupted JSON, permission denied) —
+// callers treat null as "fall back to defaults", matching the project's native-fallback
+// failure model (22_FAILURE_MODES_FALLBACKS.md), not just the ENOENT case.
 export async function readJsonIfExists<T>(filePath: string): Promise<T | null> {
   try {
     const raw = await fs.readFile(filePath, 'utf8');
     return JSON.parse(raw) as T;
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+  } catch {
     return null;
   }
 }
