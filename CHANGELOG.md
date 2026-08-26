@@ -55,12 +55,19 @@ not by inspection:
   including locale-grouped numbers (`~1.420 tok`). Verified against 11 real
   plugins on a live install.
 
+### Fixed (CI)
+
+- `npm run lint` calls `eslint`, but `eslint` was never listed as a
+  devDependency, so `npm ci` never installed it and CI failed at the lint
+  step on every run since the repository was published. Added the
+  dependency and verified a green run on ubuntu-latest, windows-latest, and
+  macos-latest.
+
 ### Known gaps in this initial cut
 
-- Cross-platform CI execution and npm/marketplace publication have not been
-  run in this development environment. One benchmark suite has been run
-  against a live `claude` binary (`benchmarks/published/`); broader suite
-  coverage is still open.
+- npm/marketplace publication has not been run. One benchmark suite has
+  been run against a live `claude` binary (`benchmarks/published/`);
+  broader suite coverage is still open.
 - The full `33_ACCEPTANCE_TEST_MATRIX.md` is not yet exhaustively mapped to
   automated tests; unit coverage exists for the profile compiler, router,
   settings-overlay monotonicity, config validation and benchmark statistics.

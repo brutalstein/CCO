@@ -189,7 +189,7 @@ See `ARCHITECTURE.md` for the fuller breakdown.
 
 ## Status
 
-Core packages build clean and are unit-tested (42 tests); `doctor`/`inventory`/`analyze`/`audit`/`run` have been exercised against a real Claude Code install with real installed plugins (not fixtures). The `brutalstein/cco` marketplace and `cco@cco` plugin install path is verified end-to-end from a live GitHub clone, and one benchmark suite has been run against a live `claude` binary (see above). See `CHANGELOG.md` for exactly what has and hasn't been verified yet (npm publish, full CI execution, and the complete acceptance matrix are still open).
+Core packages build clean and are unit-tested (42 tests); `doctor`/`inventory`/`analyze`/`audit`/`run` have been exercised against a real Claude Code install with real installed plugins (not fixtures). The `brutalstein/cco` marketplace and `cco@cco` plugin install path is verified end-to-end from a live GitHub clone, and one benchmark suite has been run against a live `claude` binary (see above). CI is green on ubuntu-latest, windows-latest, and macos-latest. See `CHANGELOG.md` for exactly what has and hasn't been verified yet (npm publish and the complete acceptance matrix are still open).
 
 ## Contributing
 
