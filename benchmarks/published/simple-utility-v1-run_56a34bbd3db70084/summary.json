@@ -1,0 +1,94 @@
+{
+  "suiteId": "simple-utility-v1",
+  "runId": "run_56a34bbd3db70084",
+  "createdAt": "2026-08-26T19:03:29.852Z",
+  "arms": [
+    {
+      "arm": "baseline",
+      "trials": 2,
+      "successRate": 1,
+      "infrastructureFailures": 0
+    },
+    {
+      "arm": "candidate",
+      "trials": 2,
+      "successRate": 1,
+      "infrastructureFailures": 0
+    }
+  ],
+  "trials": [
+    {
+      "arm": "baseline",
+      "trialIndex": 0,
+      "success": true,
+      "deterministicFailures": [],
+      "wallMs": 21947,
+      "usage": {
+        "inputTokens": 10,
+        "cacheReadTokens": 293086,
+        "cacheWriteTokens": 46641,
+        "outputTokens": 806,
+        "costUsd": 0.2532612
+      },
+      "infrastructureFailure": false,
+      "rawArtifactPath": null
+    },
+    {
+      "arm": "candidate",
+      "trialIndex": 0,
+      "success": true,
+      "deterministicFailures": [],
+      "wallMs": 25736,
+      "usage": {
+        "inputTokens": 10,
+        "cacheReadTokens": 291994,
+        "cacheWriteTokens": 47140,
+        "outputTokens": 844,
+        "costUsd": 0.2554188
+      },
+      "infrastructureFailure": false,
+      "rawArtifactPath": null
+    },
+    {
+      "arm": "baseline",
+      "trialIndex": 1,
+      "success": true,
+      "deterministicFailures": [],
+      "wallMs": 21965,
+      "usage": {
+        "inputTokens": 10,
+        "cacheReadTokens": 292061,
+        "cacheWriteTokens": 47163,
+        "outputTokens": 878,
+        "costUsd": 0.25586420000000004
+      },
+      "infrastructureFailure": false,
+      "rawArtifactPath": null
+    },
+    {
+      "arm": "candidate",
+      "trialIndex": 1,
+      "success": true,
+      "deterministicFailures": [],
+      "wallMs": 43159,
+      "usage": {
+        "inputTokens": 10,
+        "cacheReadTokens": 293287,
+        "cacheWriteTokens": 46796,
+        "outputTokens": 952,
+        "costUsd": 0.2553814
+      },
+      "infrastructureFailure": false,
+      "rawArtifactPath": null
+    }
+  ],
+  "verdict": {
+    "baselineSuccess": 1,
+    "candidateSuccess": 1,
+    "difference": 0,
+    "lowerBound": 0,
+    "tolerance": 0,
+    "nonInferior": true,
+    "deterministicRegression": false
+  }
+}

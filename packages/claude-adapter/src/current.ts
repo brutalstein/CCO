@@ -16,7 +16,7 @@ import type {
 } from './interface.js';
 import { parseVersion, versionFamily, detectFeatures, detectToolSearchStatus } from './probes.js';
 import { parsePluginListJson } from './plugin-list.js';
-import { parsePluginDetailsJson } from './plugin-details.js';
+import { parsePluginDetailsText } from './plugin-details.js';
 import { buildOverlayJson, validateOverlayMonotonic } from './settings-overlay.js';
 import { normalizeHookInput as normalizeHookInputImpl, encodeHookContext as encodeHookContextImpl } from './hook-codec.js';
 
@@ -99,11 +99,11 @@ export class CurrentClaudeAdapter implements ClaudeAdapter {
     if (!ctx.env.found || !ctx.env.features.pluginDetails) return null;
     try {
       const res = await this.launcher.runCapture(
-        { command: ctx.env.resolvedBinaryPath ?? 'claude', args: ['plugin', 'details', id, '--json'], cwd: ctx.cwd },
+        { command: ctx.env.resolvedBinaryPath ?? 'claude', args: ['plugin', 'details', id], cwd: ctx.cwd },
         DETAILS_TIMEOUT_MS
       );
       if (res.code !== 0) return null;
-      return parsePluginDetailsJson(id, res.stdout);
+      return parsePluginDetailsText(id, res.stdout);
     } catch {
       return null;
     }
@@ -129,11 +129,13 @@ export class CurrentClaudeAdapter implements ClaudeAdapter {
 
   benchmarkInvocation(spec: BenchmarkInvocationSpec): SpawnSpecLike {
     const args = ['-p', spec.prompt, '--output-format', spec.outputFormat];
+    if (spec.outputFormat === 'stream-json') args.push('--verbose');
     if (spec.model) args.push('--model', spec.model);
     if (spec.maxTurns) args.push('--max-turns', String(spec.maxTurns));
     if (spec.settingsFile) args.push('--settings', spec.settingsFile);
     if (spec.mcpConfig) args.push('--mcp-config', spec.mcpConfig);
     if (spec.strictMcpConfig) args.push('--strict-mcp-config');
+    if (spec.permissionMode) args.push('--permission-mode', spec.permissionMode);
     return { command: 'claude', args, cwd: spec.cwd };
   }
 }

@@ -100,6 +100,7 @@ export interface BenchmarkInvocationSpec {
   settingsFile?: string;
   mcpConfig?: string;
   strictMcpConfig?: boolean;
+  permissionMode?: 'acceptEdits' | 'auto' | 'bypassPermissions' | 'manual' | 'dontAsk' | 'plan';
 }
 
 export interface SpawnSpecLike {

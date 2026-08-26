@@ -30,10 +30,37 @@ follows the rules in `25_INSTALLATION_DISTRIBUTION_RELEASE.md` section 5.
   bundle, plus four user-invoked diagnostic skills
   (`status`, `explain`, `audit`, `profile`).
 
+### Fixed
+
+Found and fixed by actually running CCO against a live Claude Code install,
+not by inspection:
+
+- Plugin manifest declared `hooks` redundantly with Claude Code's own
+  convention-based `hooks/hooks.json` autoload, causing a duplicate-hooks
+  load error on install.
+- `graph/tags.ts`'s auto-extracted domain tags (`domain:frontend`) never
+  matched the domain tags `RepoFingerprint.domains` actually produces
+  (`domain:frontend-ui`), so repo-affinity KEEP decisions for auto-tagged
+  plugins never fired. See `packages/core/test/repo-affinity.test.ts`.
+- The benchmark harness's headless `claude -p` invocations had no
+  `--permission-mode`, so file edits were silently permission-denied in
+  every trial, and `--output-format stream-json` without `--verbose` makes
+  the real CLI exit immediately with an error — both meant no benchmark
+  trial had ever actually completed a task.
+- `claude plugin details <id>` has no `--json` mode on the real CLI (only
+  `-h/--help`); the adapter was requesting one anyway, so cost/component
+  data for every real installed plugin was silently lost and every plugin
+  fell back to `KEEP_UNCERTAIN`. Replaced with a parser for the CLI's actual
+  human-readable output (`packages/claude-adapter/src/plugin-details.ts`),
+  including locale-grouped numbers (`~1.420 tok`). Verified against 11 real
+  plugins on a live install.
+
 ### Known gaps in this initial cut
 
-- Live-Claude-binary smoke tests, cross-platform CI execution and npm/
-  marketplace publication have not been run in this development environment.
+- Cross-platform CI execution and npm/marketplace publication have not been
+  run in this development environment. One benchmark suite has been run
+  against a live `claude` binary (`benchmarks/published/`); broader suite
+  coverage is still open.
 - The full `33_ACCEPTANCE_TEST_MATRIX.md` is not yet exhaustively mapped to
   automated tests; unit coverage exists for the profile compiler, router,
   settings-overlay monotonicity, config validation and benchmark statistics.

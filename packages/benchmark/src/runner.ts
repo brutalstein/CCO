@@ -90,7 +90,10 @@ export class DefaultBenchmarkRunner implements BenchmarkRunner {
         maxTurns: suite.claude.maxTurns,
         outputFormat: 'stream-json',
         cwd: workDir,
-        settingsFile: arm.settingsFile ?? undefined
+        settingsFile: arm.settingsFile ?? undefined,
+        // trials only ever run inside a disposable isolated copy (see createIsolatedCopy
+        // above), never the user's real working tree, so auto-accepting edits here is safe
+        permissionMode: 'acceptEdits'
       });
 
       const result = await this.launcher.runCapture({ command: spec.command, args: spec.args, cwd: spec.cwd, env: spec.env }, DEFAULT_TRIAL_TIMEOUT_MS);

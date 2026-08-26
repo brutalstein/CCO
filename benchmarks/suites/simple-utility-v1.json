@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "simple-utility-v1",
+  "taskFamily": ["small-edit", "javascript"],
+  "fixture": { "type": "local", "path": "benchmarks/suites/fixtures/simple-utility" },
+  "promptFile": "PROMPT.md",
+  "claude": { "maxTurns": 8 },
+  "checks": [
+    { "type": "command", "commandId": "math-add-check", "command": ["node", "check.mjs"] }
+  ],
+  "trials": 2
+}

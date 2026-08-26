@@ -374,7 +374,11 @@ var DICTIONARY = [
   { tag: "domain:security", keywords: ["security", "auth", "vulnerability", "threat", "owasp"] },
   { tag: "domain:testing", keywords: ["test", "testing", "tdd", "coverage"] },
   { tag: "domain:database", keywords: ["database", "sql", "postgres", "mysql", "schema", "migration"] },
-  { tag: "domain:frontend", keywords: ["frontend", "ui", "design", "css", "component"] },
+  // 'frontend-ui'/'backend-api' match RepoFingerprint.domains verbatim (repo/fingerprint.ts)
+  // so an auto-tagged plugin's domain actually lines up with repo-derived affinity tags
+  // (graph/builder.ts, profile/compiler.ts, routing/scoring.ts all do `domain:${repo.domains}`).
+  { tag: "domain:frontend-ui", keywords: ["frontend", "ui", "design", "css", "component"] },
+  { tag: "domain:backend-api", keywords: ["backend", "api", "server", "express", "fastify", "rest api"] },
   { tag: "domain:mobile", keywords: ["ios", "android", "mobile", "swift", "kotlin"] },
   { tag: "domain:infrastructure", keywords: ["kubernetes", "docker", "terraform", "deploy", "ci/cd", "infrastructure"] },
   { tag: "operation:code-review", keywords: ["review", "code review"] },

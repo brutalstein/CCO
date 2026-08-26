@@ -6,11 +6,30 @@ published results; it intentionally starts empty.
 
 ## Status
 
-No public benchmark artifacts have been published yet. This initial
-implementation has not been run against a live Claude Code binary in its
-development environment, so no savings/quality percentage is claimed here.
-Do not cite a number for CCO's token savings or quality non-inferiority until
-an entry appears below with an artifact under `benchmarks/published/`.
+One suite (`simple-utility-v1`) has been run against a real, live Claude Code
+CLI install (see the published result below): 2 trials per arm, a small
+single-file JavaScript edit task, `baseline` (native) vs `candidate` (CCO's
+compiled profile for this repository). Both arms completed the task
+correctly in every trial (non-inferior, 0 quality delta) — this is real
+evidence that CCO's optimization does not degrade task completion, run live
+rather than assumed.
+
+That run's measured token delta between arms was not large enough to be
+distinguishable from cache-variance noise at 2 trials, because on the
+machine it ran on almost every installed plugin was already relevant to the
+repository (little was actually prunable there — see the caveat in
+`README.md`'s "Real numbers" section). The `scripts/demo-savings.mjs`
+example makes the pruning behavior itself easy to verify directly against
+the shipped compiler code, independent of any one machine's installed
+plugin set.
+
+While building this suite, two real defects in the benchmark harness were
+found and fixed by actually running it live (never previously exercised
+against a real `claude` binary): `--output-format stream-json` requires
+`--verbose` in headless `-p` mode or the CLI errors immediately, and headless
+trials need an explicit `--permission-mode` or file edits are silently
+denied. Both fixes are in `packages/claude-adapter/src/current.ts` and
+`packages/benchmark/src/runner.ts`.
 
 ## How results get here
 
@@ -32,4 +51,4 @@ an entry appears below with an artifact under `benchmarks/published/`.
 
 | Date | Suite | Claude version | Baseline | Candidate | Quality | Token delta | Artifact |
 |---|---|---|---|---|---|---|---|
-| _none yet_ | | | | | | | |
+| 2026-08-26 | `simple-utility-v1` | 2.1.246 | native, 2 trials, 2/2 success | CCO safe profile, 2 trials, 2/2 success | non-inferior (0 delta) | not distinguishable from noise at n=2 on this machine's plugin set | `benchmarks/published/simple-utility-v1-run_56a34bbd3db70084/summary.json` |

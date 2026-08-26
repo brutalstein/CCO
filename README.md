@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.svg">
+  <img src="assets/banner-light.svg" alt="CCO — Claude Capability Optimizer" width="100%">
+</picture>
+
 # CCO — Claude Capability Optimizer
 
 **CCO (Claude Capability Optimizer)** is an unofficial, open-source companion for [Claude Code](https://claude.com/claude-code) that trims the token cost of your installed plugins/skills/agents/MCP servers **before** a session starts, and routes each prompt to only the capabilities it actually needs — without ever touching your existing Claude Code configuration.
@@ -123,6 +128,26 @@ actual installed plugin (not an estimate):
 The companion plugin you install to get per-prompt routing costs less than a
 tenth of the single irrelevant plugin it helped prune in the example above.
 
+### Verified against a real, live Claude Code install
+
+Two things worth being explicit about, because "unofficial and unbenchmarked"
+is a common way these projects quietly lie:
+
+- **Cost data comes from the real CLI, parsed correctly.** `claude plugin
+  details <id>` has no `--json` mode on the currently installed CLI (only
+  `-h/--help`) — CCO parses its human-readable output instead
+  (`packages/claude-adapter/src/plugin-details.ts`), including locale-grouped
+  numbers like `~1.420 tok`. This was verified end-to-end against 11 real,
+  independently-installed plugins on a live machine, not just against
+  fixtures.
+- **A benchmark suite has actually been run against a live `claude` binary**,
+  not just designed. `benchmarks/suites/simple-utility-v1` ran a real
+  single-file edit task through `claude -p`, baseline vs a CCO-compiled
+  profile, 2 trials per arm: both arms completed the task correctly in every
+  trial (non-inferior). The raw result is published at
+  `benchmarks/published/simple-utility-v1-run_56a34bbd3db70084/summary.json`
+  — see `BENCHMARKS.md` for what it does and doesn't show yet.
+
 ## How it fits together
 
 ```mermaid
@@ -164,7 +189,7 @@ See `ARCHITECTURE.md` for the fuller breakdown.
 
 ## Status
 
-Core packages build clean and are unit-tested (38 tests); `doctor`/`inventory`/`analyze`/`audit`/`run` have been exercised against a real Claude Code install. The `brutalstein/cco` marketplace and `cco@cco` plugin install path is verified end-to-end from a live GitHub clone. See `CHANGELOG.md` for exactly what has and hasn't been verified yet (npm publish, full CI execution, and the complete acceptance matrix are still open).
+Core packages build clean and are unit-tested (42 tests); `doctor`/`inventory`/`analyze`/`audit`/`run` have been exercised against a real Claude Code install with real installed plugins (not fixtures). The `brutalstein/cco` marketplace and `cco@cco` plugin install path is verified end-to-end from a live GitHub clone, and one benchmark suite has been run against a live `claude` binary (see above). See `CHANGELOG.md` for exactly what has and hasn't been verified yet (npm publish, full CI execution, and the complete acceptance matrix are still open).
 
 ## Contributing
 

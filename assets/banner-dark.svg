@@ -1,0 +1,10 @@
+<svg viewBox="0 0 1200 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CCO — Claude Capability Optimizer">
+  <g transform="translate(60,66)">
+    <circle cx="64" cy="64" r="48" fill="none" stroke="#8B93A7" stroke-opacity="0.4" stroke-width="14" stroke-dasharray="4.8 11.2" stroke-linecap="round"/>
+    <circle cx="64" cy="64" r="48" fill="none" stroke="#818CF8" stroke-width="14" stroke-linecap="round"
+      stroke-dasharray="93.6 301.6" transform="rotate(-90 64 64)"/>
+  </g>
+  <text x="248" y="118" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="72" font-weight="700" fill="#F2F4F8">CCO</text>
+  <text x="248" y="160" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="28" font-weight="600" fill="#A5B4FC">Claude Capability Optimizer</text>
+  <text x="248" y="196" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="20" fill="#9AA4B2">Pre-session token optimization for Claude Code — verified against a live install.</text>
+</svg>
