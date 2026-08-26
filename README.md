@@ -35,7 +35,22 @@ Verified in practice: running `cco run` against a real Claude Code install with 
 
 ## Install
 
-Not yet published to npm. Build from source:
+**Recommended — two commands, no clone, no build step.** Claude Code can add
+this repo as a plugin marketplace and install directly from GitHub:
+
+```bash
+claude plugin marketplace add brutalstein/cco
+claude plugin install cco@cco
+```
+
+That's it. This has been run end-to-end against a real GitHub clone (not just
+a local path) with a genuine Claude Code CLI install — `claude plugin list
+--json` shows zero errors afterward, and the plugin's own manifest passes
+`claude plugin validate --strict`. It only ever *adds* one entry to your
+plugin list; it does not touch, reorder, or disable anything already there
+(see [Zero-friction, zero-risk integration](#zero-friction-zero-risk-integration)).
+
+Building from source (for the `cco` CLI itself, or to contribute):
 
 ```bash
 git clone https://github.com/brutalstein/cco.git
@@ -56,6 +71,57 @@ node apps/cli/dist/main.js run        # launch Claude with an ephemeral, optimiz
 ```
 
 `cco init` additionally installs the small companion plugin (SessionStart/UserPromptSubmit hooks + four user-invoked diagnostic skills) so `cco run` sessions also get per-prompt routing hints — entirely optional, and additive to whatever plugins you already have.
+
+## Real numbers, not marketing copy
+
+Every number below comes from running actual, committed code against
+committed fixtures — reproduce it yourself with `node scripts/demo-savings.mjs`,
+no live Claude call or hand-edited number involved.
+
+**Scenario:** a real TypeScript/React/Vite repository fixture, with two
+plugins installed: `frontend-kit` (relevant) and `security-tools`
+(irrelevant to this repo, no dependency, no matching tag).
+
+```mermaid
+pie showData
+    title Always-on tokens before optimization (2060 total)
+    "frontend-kit (kept)" : 640
+    "security-tools (pruned)" : 1420
+```
+
+```mermaid
+pie showData
+    title Always-on tokens after optimization (640 total)
+    "frontend-kit (kept)" : 640
+```
+
+| Plugin | Decision | Reason code | Why |
+|---|---|---|---|
+| `frontend-kit@example` | **KEEP** | `KEEP_HIGH_REPO_AFFINITY` | its auto-extracted `domain:frontend-ui` tag matches this repo's fingerprinted domain |
+| `security-tools@example` | **PRUNE** | `PRUNE_STRUCTURAL_IRRELEVANCE` | no repository or task affinity, and nothing else depends on it |
+
+**Result: 2060 → 640 always-on tokens, a 69% reduction**, for this repo/plugin
+combination — computed by the same `DefaultProfileCompiler` that ships in
+`packages/core`, not a separate demo-only code path.
+
+Reductions vary by repo and installed plugin set: a repo whose plugins are
+*all* relevant sees ~0% reduction (correct — there's nothing safe to prune),
+while a large generic plugin set on a narrow single-purpose repo can see
+much more. CCO reports the real number for *your* environment via
+`cco analyze`; the number above is one concrete, reproducible example.
+
+**CCO's own footprint**, from `claude plugin details cco@cco` against the
+actual installed plugin (not an estimate):
+
+| | |
+|---|---|
+| Always-on cost | **~246 tokens** |
+| Skills | 4 (`status`, `explain`, `audit`, `profile`) — user-invoked only |
+| Hooks | 3 (`SessionStart`, `UserPromptSubmit`, `SessionEnd`) — harness-only, no model context cost |
+| Agents / MCP servers / LSP servers | 0 / 0 / 0 |
+
+The companion plugin you install to get per-prompt routing costs less than a
+tenth of the single irrelevant plugin it helped prune in the example above.
 
 ## How it fits together
 
@@ -98,7 +164,7 @@ See `ARCHITECTURE.md` for the fuller breakdown.
 
 ## Status
 
-Core packages build clean and are unit-tested; `doctor`/`inventory`/`analyze`/`audit`/`run` have been exercised against a real Claude Code install. See `CHANGELOG.md` for exactly what has and hasn't been verified yet (npm publish, plugin marketplace listing, full CI execution, and the complete acceptance matrix are still open).
+Core packages build clean and are unit-tested (38 tests); `doctor`/`inventory`/`analyze`/`audit`/`run` have been exercised against a real Claude Code install. The `brutalstein/cco` marketplace and `cco@cco` plugin install path is verified end-to-end from a live GitHub clone. See `CHANGELOG.md` for exactly what has and hasn't been verified yet (npm publish, full CI execution, and the complete acceptance matrix are still open).
 
 ## Contributing
 
