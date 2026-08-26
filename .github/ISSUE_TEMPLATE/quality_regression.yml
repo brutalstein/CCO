@@ -1,0 +1,18 @@
+name: Quality regression
+description: An optimized profile performed worse than native/baseline on a real task.
+labels: ["quality"]
+body:
+  - type: textarea
+    id: profile
+    attributes: { label: Profile id / `cco analyze --json` output }
+    validations: { required: true }
+  - type: textarea
+    id: what-broke
+    attributes: { label: What broke compared to native Claude behavior }
+    validations: { required: true }
+  - type: checkboxes
+    id: benchmark
+    attributes:
+      label: Reproduction
+      options:
+        - label: I can reproduce this with `cco benchmark run` and will attach the run id

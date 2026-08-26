@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cco.dev/schemas/telemetry.schema.json",
+  "title": "TelemetryEvent",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "eventVersion",
+    "timestamp",
+    "type",
+    "ccoVersion",
+    "claudeVersion",
+    "projectId",
+    "sessionIdHash",
+    "payload"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "eventVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "type": {
+      "enum": [
+        "session_start",
+        "session_launch",
+        "route",
+        "session_end",
+        "inventory_refresh",
+        "benchmark"
+      ]
+    },
+    "ccoVersion": {
+      "type": "string"
+    },
+    "claudeVersion": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "projectId": {
+      "type": "string",
+      "pattern": "^project_"
+    },
+    "sessionIdHash": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object"
+    }
+  }
+}

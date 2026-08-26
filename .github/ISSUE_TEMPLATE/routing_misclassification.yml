@@ -1,0 +1,17 @@
+name: Routing misclassification
+description: The UserPromptSubmit hook injected the wrong hint, or abstained when it should have routed.
+labels: ["routing"]
+body:
+  - type: textarea
+    id: prompt-shape
+    attributes:
+      label: Prompt shape (do not paste the literal prompt if it is sensitive - describe its topic/intent instead)
+    validations: { required: true }
+  - type: textarea
+    id: cco-explain
+    attributes: { label: Output of `cco explain --last --json` }
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes: { label: Which capability should have been routed to, and why }
+    validations: { required: true }

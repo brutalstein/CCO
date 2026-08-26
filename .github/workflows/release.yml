@@ -1,0 +1,29 @@
+name: Release
+
+# Tag/release only from protected branch (25_INSTALLATION_DISTRIBUTION_RELEASE.md section 7
+# step 13). This workflow builds, verifies and packages artifacts; it deliberately stops
+# short of `npm publish` / marketplace submission, which stay a manual, reviewed step.
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
+      - run: npm run build:plugin
+      - run: node scripts/package-release.mjs
+      - run: node scripts/verify-release.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cco-release-${{ github.ref_name }}
+          path: dist-release/

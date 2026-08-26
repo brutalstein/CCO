@@ -1,0 +1,271 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cco.dev/schemas/config.schema.json",
+  "title": "CCOConfig",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "mode",
+    "profile",
+    "routing",
+    "optimization",
+    "repository",
+    "privacy",
+    "benchmark",
+    "experimental"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "mode": {
+      "enum": [
+        "observe",
+        "safe",
+        "aggressive",
+        "native"
+      ]
+    },
+    "profile": {
+      "type": "object",
+      "required": [
+        "strategy",
+        "defaultName",
+        "neverDisable",
+        "protected"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "strategy": {
+          "enum": [
+            "auto",
+            "named"
+          ]
+        },
+        "defaultName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "neverDisable": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "protected": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "confidenceThreshold",
+        "ambiguityMargin",
+        "maxInjectedTokens",
+        "hardDeadlineMs",
+        "tieBreaker"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "confidenceThreshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "ambiguityMargin": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "maxInjectedTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hardDeadlineMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tieBreaker": {
+          "enum": [
+            "none",
+            "claude"
+          ]
+        }
+      }
+    },
+    "optimization": {
+      "type": "object",
+      "required": [
+        "safePruneAffinityMax",
+        "metadataConfidenceMin",
+        "quality",
+        "modelOptimization",
+        "preferStableProfile"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "safePruneAffinityMax": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "metadataConfidenceMin": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "quality": {
+          "type": "object",
+          "required": [
+            "mode",
+            "defaultTolerance",
+            "minExploratoryTrialsPerArm",
+            "publicClaimTrialsPerArm"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "non-inferiority"
+            },
+            "defaultTolerance": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "minExploratoryTrialsPerArm": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "publicClaimTrialsPerArm": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "modelOptimization": {
+          "type": "boolean"
+        },
+        "preferStableProfile": {
+          "type": "boolean"
+        }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "required": [
+        "maxTrackedFiles",
+        "maxManifestBytes",
+        "maxTotalParsedBytes",
+        "deepScan"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "maxTrackedFiles": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxManifestBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxTotalParsedBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "deepScan": {
+          "type": "boolean"
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "required": [
+        "storeRawPrompts",
+        "storeTranscriptContent",
+        "storePromptHash",
+        "remoteTelemetry",
+        "eventRetentionDays"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "storeRawPrompts": {
+          "type": "boolean",
+          "const": false
+        },
+        "storeTranscriptContent": {
+          "type": "boolean",
+          "const": false
+        },
+        "storePromptHash": {
+          "type": "boolean"
+        },
+        "remoteTelemetry": {
+          "type": "boolean",
+          "const": false
+        },
+        "eventRetentionDays": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "benchmark": {
+      "type": "object",
+      "required": [
+        "defaultTrials",
+        "isolation",
+        "saveRawStreams"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "defaultTrials": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "isolation": {
+          "enum": [
+            "worktree",
+            "copy"
+          ]
+        },
+        "saveRawStreams": {
+          "type": "boolean"
+        }
+      }
+    },
+    "experimental": {
+      "type": "object",
+      "required": [
+        "agentTeams",
+        "llmRoutingTieBreaker"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "agentTeams": {
+          "type": "boolean"
+        },
+        "llmRoutingTieBreaker": {
+          "type": "boolean"
+        }
+      }
+    },
+    "neverDisable": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

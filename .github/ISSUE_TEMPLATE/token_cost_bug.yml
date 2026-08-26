@@ -1,0 +1,12 @@
+name: Token/cost accounting bug
+description: Projected always-on/invoke token costs look wrong for a plugin/component.
+labels: ["cost-accounting"]
+body:
+  - type: input
+    id: plugin-id
+    attributes: { label: Plugin/component id }
+    validations: { required: true }
+  - type: textarea
+    id: expected-actual
+    attributes: { label: Expected vs. reported cost, and provenance (anthropic_projected / local_estimate) }
+    validations: { required: true }

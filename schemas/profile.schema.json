@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cco.dev/schemas/profile.schema.json",
+  "title": "CompiledProfile",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "createdAt",
+    "mode",
+    "inventoryId",
+    "repoFingerprintId",
+    "intentHash",
+    "baseline",
+    "selected",
+    "overlay",
+    "costProjection",
+    "quality",
+    "decisions",
+    "runtimeCapabilityIds",
+    "integrityHash"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^profile_"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "mode": {
+      "enum": [
+        "observe",
+        "safe",
+        "aggressive",
+        "native"
+      ]
+    },
+    "inventoryId": {
+      "type": "string"
+    },
+    "repoFingerprintId": {
+      "type": "string"
+    },
+    "intentHash": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "baseline": {
+      "type": "object",
+      "required": [
+        "enabledPluginIds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "enabledPluginIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "selected": {
+      "type": "object",
+      "required": [
+        "enabledPluginIds",
+        "prunedPluginIds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "enabledPluginIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "prunedPluginIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "overlay": {
+      "type": "object",
+      "required": [
+        "enabledPlugins"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "enabledPlugins": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "costProjection": {
+      "type": "object",
+      "required": [
+        "alwaysOnBefore",
+        "alwaysOnAfter",
+        "unknownBefore",
+        "unknownAfter"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "alwaysOnBefore": {
+          "type": "number",
+          "minimum": 0
+        },
+        "alwaysOnAfter": {
+          "type": "number",
+          "minimum": 0
+        },
+        "unknownBefore": {
+          "type": "number",
+          "minimum": 0
+        },
+        "unknownAfter": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "required": [
+        "status",
+        "evidenceIds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "subjectId",
+          "action",
+          "reasonCodes",
+          "explanation",
+          "inputs",
+          "confidence"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "subjectId": {
+            "type": "string"
+          },
+          "action": {
+            "enum": [
+              "keep",
+              "prune",
+              "pin",
+              "protect"
+            ]
+          },
+          "reasonCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "inputs": {
+            "type": "object"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
+    "runtimeCapabilityIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "integrityHash": {
+      "type": "string"
+    }
+  }
+}

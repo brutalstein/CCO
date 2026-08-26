@@ -1,0 +1,22 @@
+name: Benchmark regression
+
+# Runs the local benchmark harness against fake-claude fixtures on every push, and is the
+# place a real Claude-backed suite would run on a schedule/opt-in trigger once repository
+# secrets/authenticated Claude access are configured (20_BENCHMARK_HARNESS.md,
+# 23_PERFORMANCE_BUDGETS.md section 9 regression gates).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+      - run: npm ci
+      - run: npm run build
+      - run: npx vitest run packages/benchmark

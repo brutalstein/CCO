@@ -1,0 +1,134 @@
+import { canonicalHash } from '@cco/platform';
+import { extractTags } from './tags.js';
+import { similarity, REDUNDANCY_THRESHOLD } from './similarity.js';
+import {
+  GRAPH_ALGORITHM_VERSION,
+  SCHEMA_VERSION,
+  type CapabilityEdge,
+  type CapabilityGraph,
+  type CapabilityNode,
+  type InventorySnapshot,
+  type RepoFingerprint
+} from '../types.js';
+
+const MAX_PAIRWISE_NODES = 800;
+
+export interface CapabilityGraphBuilder {
+  build(inventory: InventorySnapshot, repo?: RepoFingerprint): CapabilityGraph;
+}
+
+/**
+ * Deterministic capability graph builder (05_CAPABILITY_MODEL.md, 32_ALGORITHMS_PSEUDOCODE.md
+ * section 4). Pure apart from GRAPH_ALGORITHM_VERSION; identical inventory/repo input always
+ * produces an identical node/edge set and hash.
+ */
+export class DefaultCapabilityGraphBuilder implements CapabilityGraphBuilder {
+  build(inventory: InventorySnapshot, repo?: RepoFingerprint): CapabilityGraph {
+    const nodes: CapabilityNode[] = [];
+    const edges: CapabilityEdge[] = [];
+
+    for (const plugin of inventory.plugins) {
+      const pluginId = `plugin:${plugin.canonicalId}`;
+      const details = inventory.pluginDetails[plugin.canonicalId];
+      const tags = extractTags(plugin.name, plugin.name, 'metadata');
+      const affinity = repo ? repoAffinityBoost(tags, repo) : 0;
+
+      nodes.push({
+        id: pluginId,
+        type: 'plugin',
+        ownerPluginId: null,
+        displayName: plugin.name,
+        descriptionHash: canonicalHash(plugin.name),
+        tags: affinity > 0 ? [...tags, { id: 'affine_to:repo', confidence: affinity, source: 'repo-fingerprint' }] : tags,
+        availability: plugin.enabled ? 'baseline_enabled' : 'baseline_disabled',
+        cost: {
+          alwaysOnTokens: details?.alwaysOnTokens,
+          source: details ? (details.source as 'anthropic_projected' | 'unknown') : 'unknown'
+        },
+        riskFlags: details?.riskFlags ?? [],
+        metadataConfidence: details ? 0.95 : 0.5,
+        dependencies: (details?.dependencies ?? []).map((d) => `plugin:${d}`),
+        managed: plugin.managed ?? false,
+        protected: false,
+        baselineEnabled: plugin.enabled
+      });
+
+      for (const dep of details?.dependencies ?? []) {
+        edges.push({ type: 'depends_on', from: pluginId, to: `plugin:${dep}`, confidence: 1, provenance: 'anthropic_projected' });
+      }
+
+      for (const comp of details?.components ?? []) {
+        const compId = `${comp.type}:${plugin.canonicalId}/${comp.id}`;
+        const compTags = extractTags(comp.name, comp.name, 'metadata');
+        nodes.push({
+          id: compId,
+          type: normalizeComponentType(comp.type),
+          ownerPluginId: pluginId,
+          displayName: comp.name,
+          descriptionHash: canonicalHash(comp.name),
+          tags: compTags,
+          availability: plugin.enabled ? 'baseline_enabled' : 'baseline_disabled',
+          cost: { source: 'unknown' },
+          riskFlags: [],
+          metadataConfidence: 0.7,
+          dependencies: [],
+          managed: plugin.managed ?? false,
+          protected: false,
+          baselineEnabled: plugin.enabled
+        });
+        edges.push({ type: 'contains', from: pluginId, to: compId, confidence: 1, provenance: 'anthropic_projected' });
+      }
+    }
+
+    if (nodes.length <= MAX_PAIRWISE_NODES) {
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = nodes[i];
+          const b = nodes[j];
+          const sim = similarity(
+            { name: a.displayName, description: a.displayName, tags: a.tags, ownerPluginId: a.ownerPluginId },
+            { name: b.displayName, description: b.displayName, tags: b.tags, ownerPluginId: b.ownerPluginId }
+          );
+          if (sim.score > REDUNDANCY_THRESHOLD) {
+            edges.push({ type: 'redundant_with', from: a.id, to: b.id, confidence: sim.score, provenance: 'lexical-similarity' });
+          }
+        }
+      }
+    }
+
+    nodes.sort((a, b) => a.id.localeCompare(b.id));
+    edges.sort((a, b) => (a.from + a.to + a.type).localeCompare(b.from + b.to + b.type));
+
+    const graph: Omit<CapabilityGraph, 'inventoryFingerprint'> & { inventoryFingerprint: string } = {
+      schemaVersion: SCHEMA_VERSION,
+      inventoryFingerprint: inventory.id,
+      generatedAt: new Date().toISOString(),
+      nodes,
+      edges,
+      buildAlgorithmVersion: GRAPH_ALGORITHM_VERSION,
+      sourceHashes: { inventory: inventory.id, repo: repo?.id ?? 'none' }
+    };
+    return graph;
+  }
+}
+
+function normalizeComponentType(type: string): CapabilityNode['type'] {
+  const t = type.toLowerCase();
+  if (t.includes('skill')) return 'skill';
+  if (t.includes('agent')) return 'agent';
+  if (t.includes('hook')) return 'hook';
+  if (t.includes('mcp')) return 'mcp_server';
+  if (t.includes('lsp')) return 'lsp_server';
+  if (t.includes('workflow')) return 'workflow';
+  return 'instruction_source';
+}
+
+function repoAffinityBoost(tags: { id: string }[], repo: RepoFingerprint): number {
+  const repoTagIds = new Set([
+    ...repo.languages.map((l) => `lang:${l.id}`),
+    ...repo.frameworks.map((f) => `framework:${f}`),
+    ...repo.domains.map((d) => `domain:${d}`)
+  ]);
+  const hit = tags.some((t) => repoTagIds.has(t.id));
+  return hit ? 0.8 : 0;
+}

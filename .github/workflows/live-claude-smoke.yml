@@ -1,0 +1,39 @@
+name: Live Claude smoke test
+
+# Exercises CurrentClaudeAdapter against a real `claude` binary when one is available
+# to the runner (25_INSTALLATION_DISTRIBUTION_RELEASE.md section 7 step 8). This is
+# opt-in/manual because CI runners do not have an authenticated Claude Code install by
+# default; wire ANTHROPIC_API_KEY / claude login state as repository secrets before
+# enabling the schedule trigger.
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+      - run: npm ci
+      - run: npm run build
+      - name: check for claude binary
+        id: probe
+        run: |
+          if command -v claude >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: cco doctor against live Claude
+        if: steps.probe.outputs.found == 'true'
+        run: node apps/cli/dist/main.js doctor --json
+      - run: npm run build:plugin
+        if: steps.probe.outputs.found == 'true'
+      - name: strict plugin validation (release CI stage 6)
+        if: steps.probe.outputs.found == 'true'
+        run: claude plugin validate plugin/cco --strict
+      - name: skip (no Claude binary on runner)
+        if: steps.probe.outputs.found != 'true'
+        run: echo "no claude binary available on this runner; skipping live smoke test"

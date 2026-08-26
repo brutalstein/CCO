@@ -1,0 +1,6 @@
+{
+  "plugins": [
+    { "id": "security-tools@example", "name": "security-tools", "version": "1.4.0", "source": "marketplace", "enabled": true, "managed": true },
+    { "id": "frontend-kit@example", "name": "frontend-kit", "version": "2.0.1", "source": "marketplace", "enabled": false, "managed": false }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "cco-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Claude Code plugin distribution bundle for Claude Capability Optimizer.",
+  "license": "Apache-2.0"
+}

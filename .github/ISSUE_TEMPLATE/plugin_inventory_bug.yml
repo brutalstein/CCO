@@ -1,0 +1,12 @@
+name: Plugin inventory bug
+description: CCO failed to discover, parse or correctly categorize an installed extension.
+labels: ["inventory"]
+body:
+  - type: textarea
+    id: inventory-output
+    attributes: { label: Output of `cco inventory --json` (redact anything sensitive) }
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes: { label: What should have been discovered instead }
+    validations: { required: true }

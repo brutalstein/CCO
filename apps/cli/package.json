@@ -1,0 +1,14 @@
+{
+  "name": "claude-capability-optimizer",
+  "version": "1.0.0",
+  "type": "module",
+  "bin": { "cco": "dist/main.js" },
+  "scripts": { "build": "tsc -b" },
+  "dependencies": {
+    "@cco/core": "1.0.0",
+    "@cco/claude-adapter": "1.0.0",
+    "@cco/platform": "1.0.0",
+    "@cco/report": "1.0.0",
+    "@cco/benchmark": "1.0.0"
+  }
+}

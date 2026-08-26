@@ -1,0 +1,13 @@
+{
+  "name": "@cco/benchmark",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": { "build": "tsc -b" },
+  "dependencies": {
+    "@cco/core": "1.0.0",
+    "@cco/claude-adapter": "1.0.0",
+    "@cco/platform": "1.0.0"
+  }
+}

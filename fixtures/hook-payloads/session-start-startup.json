@@ -1,0 +1,8 @@
+{
+  "session_id": "sess_abc123",
+  "cwd": "/home/dev/my-project",
+  "transcript_path": "/home/dev/.claude/transcripts/sess_abc123.jsonl",
+  "permission_mode": "default",
+  "source": "startup",
+  "model": "claude-sonnet-5"
+}

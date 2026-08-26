@@ -1,0 +1,5 @@
+{
+  "session_id": "sess_abc123",
+  "cwd": "/home/dev/my-project",
+  "prompt": "please do a security review of the auth module before we ship"
+}

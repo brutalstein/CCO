@@ -1,0 +1,20 @@
+name: Feature request
+description: Propose a new CCO capability or behavior change.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes: { label: What problem does this solve? }
+    validations: { required: true }
+  - type: textarea
+    id: proposal
+    attributes: { label: Proposed behavior }
+    validations: { required: true }
+  - type: checkboxes
+    id: invariants
+    attributes:
+      label: Invariant check (27_OPEN_SOURCE_GOVERNANCE.md section 9)
+      options:
+        - label: This does not require weakening a security invariant
+        - label: This preserves a native fallback path
+        - label: This does not depend on undocumented Claude internals

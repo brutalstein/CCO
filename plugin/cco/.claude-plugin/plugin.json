@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "cco",
+  "displayName": "Claude Capability Optimizer",
+  "version": "1.0.0",
+  "description": "Minimal in-session companion for CCO's pre-session capability optimizer.",
+  "license": "Apache-2.0",
+  "author": { "name": "CCO contributors", "url": "https://github.com/OWNER/claude-capability-optimizer" },
+  "keywords": ["optimization", "tokens", "plugins", "routing"],
+  "hooks": "./hooks/hooks.json"
+}
