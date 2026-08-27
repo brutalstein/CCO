@@ -24,4 +24,18 @@ describe('validateConfig', () => {
     const { ok } = validateConfig({ routing: { confidenceThreshold: 0.1 } });
     expect(ok).toBe(false);
   });
+
+  it('rejects optimization.safePruneAffinityMax outside [0, 1] (would widen unsafe pruning)', () => {
+    const { ok, config, errors } = validateConfig({ optimization: { safePruneAffinityMax: 1.5 } });
+    expect(ok).toBe(false);
+    expect(errors.some((e) => e.includes('safePruneAffinityMax'))).toBe(true);
+    expect(config.optimization.safePruneAffinityMax).toBe(0.08);
+  });
+
+  it('rejects optimization.metadataConfidenceMin outside [0, 1]', () => {
+    const { ok, config, errors } = validateConfig({ optimization: { metadataConfidenceMin: -0.1 } });
+    expect(ok).toBe(false);
+    expect(errors.some((e) => e.includes('metadataConfidenceMin'))).toBe(true);
+    expect(config.optimization.metadataConfidenceMin).toBe(0.8);
+  });
 });

@@ -96,7 +96,16 @@ export function validateConfig(input: unknown): ConfigValidationResult {
   const optimization = obj.optimization as Partial<CCOConfig['optimization']> | undefined;
   if (optimization) {
     if (optimization.modelOptimization !== undefined) merged.optimization.modelOptimization = Boolean(optimization.modelOptimization);
-    if (optimization.safePruneAffinityMax !== undefined) merged.optimization.safePruneAffinityMax = optimization.safePruneAffinityMax;
+    if (optimization.safePruneAffinityMax !== undefined) {
+      if (optimization.safePruneAffinityMax < 0 || optimization.safePruneAffinityMax > 1) {
+        errors.push('optimization.safePruneAffinityMax out of safe range [0, 1]');
+      } else merged.optimization.safePruneAffinityMax = optimization.safePruneAffinityMax;
+    }
+    if (optimization.metadataConfidenceMin !== undefined) {
+      if (optimization.metadataConfidenceMin < 0 || optimization.metadataConfidenceMin > 1) {
+        errors.push('optimization.metadataConfidenceMin out of safe range [0, 1]');
+      } else merged.optimization.metadataConfidenceMin = optimization.metadataConfidenceMin;
+    }
   }
 
   return { ok: errors.length === 0, config: merged, errors };
