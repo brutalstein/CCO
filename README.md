@@ -24,7 +24,7 @@ Every plugin, skill, agent and MCP server you install in Claude Code adds always
 - **Fingerprints your repository** (languages, frameworks, manifests) from metadata only — no source code is uploaded or indexed.
 - **Compiles a conservative session profile** before Claude starts: keep what's plausibly relevant, prune what clearly isn't, and when it's not sure, it **keeps** the capability rather than guessing.
 - **Routes each prompt** at runtime to the most relevant *already-enabled* capability using a fast, local, deterministic classifier — no extra LLM call, no added latency budget beyond a hard 100ms ceiling.
-- **Never trades quality for tokens silently.** Aggressive pruning only ever becomes the default for a task family once it's backed by a measured non-inferiority benchmark; otherwise CCO falls back to native behavior.
+- **Never trades quality for tokens silently.** Aggressive evidence can authorize only the exact capability set, candidate semantics, Claude family, model, task family, algorithm versions, statistical method, and pre-registered tolerance it qualified. Legacy or mismatched evidence is readable but cannot authorize pruning.
 
 ## Zero-friction, zero-risk integration
 
@@ -182,7 +182,7 @@ See `ARCHITECTURE.md` for the fuller breakdown.
 2. Never silently enable an extension you had disabled.
 3. Never mutate your Claude settings as part of ordinary `cco run`.
 4. Never execute third-party extension code during inventory or audit.
-5. Never claim quality preservation from intuition — a non-inferiority benchmark backs every aggressive default, or it falls back to native.
+5. Never claim quality preservation from intuition — aggressive evidence must match the exact candidate and runtime applicability contract, or it cannot authorize pruning.
 6. Don't churn plugin/tool sets per turn; a stable session prefix is a first-class goal.
 7. Cooperate with Claude's native MCP Tool Search instead of reimplementing it.
 8. Telemetry is local-only, secret-redacted, and never leaves your machine.
@@ -190,7 +190,7 @@ See `ARCHITECTURE.md` for the fuller breakdown.
 
 ## Status
 
-Core packages build clean and are unit-tested (101 tests across 22 files, including the labeled router corpus, compiler fixture matrix, launcher lifecycle, hook integrity/performance, deep-audit, benchmark-isolation, and release-safety suites — see `docs/CLAIMS.md`). `doctor`/`inventory`/`analyze`/`audit`/`run` have been exercised against a real Claude Code install with real installed plugins. The `brutalstein/cco` marketplace and `cco@cco` plugin install path is verified end-to-end from a live GitHub clone, and one smoke benchmark suite has been run against a live `claude` binary. The v1.0.0 release candidate is green on ubuntu-latest, windows-latest, and macos-latest ([CI run 33031523306](https://github.com/brutalstein/CCO/actions/runs/33031523306)). Registry availability is verified separately from repository qualification, and multi-family public-claim-grade benchmarking remains an external evidence gate.
+Core packages build clean and include regression coverage for semantic certainty, live inventory-state invalidation, content-bound repository fingerprints, strict evidence applicability, launcher fallback, hook integrity/performance, benchmark isolation, and release safety (see `docs/CLAIMS.md`). `doctor`/`inventory`/`analyze`/`audit`/`run` have been exercised against a real Claude Code install with real installed plugins. The `brutalstein/cco` marketplace and `cco@cco` plugin install path is verified end-to-end from a live GitHub clone, and one smoke benchmark suite has been run against a live `claude` binary. The v1.0.0 release candidate is green on ubuntu-latest, windows-latest, and macos-latest ([CI run 33031523306](https://github.com/brutalstein/CCO/actions/runs/33031523306)). Registry availability is verified separately from repository qualification, and compatible multi-family public-claim-grade benchmarking remains an external evidence gate.
 
 ## Contributing
 

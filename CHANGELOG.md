@@ -4,6 +4,27 @@ All notable changes to this project are documented in this file. Format
 loosely follows [Keep a Changelog](https://keepachangelog.com/), versioning
 follows the rules in `25_INSTALLATION_DISTRIBUTION_RELEASE.md` section 5.
 
+## [Unreleased]
+
+### Fixed
+
+- Separated metadata parsing, semantic coverage, and semantic classification
+  confidence. Unknown semantics now resolve to `KEEP_UNCERTAIN` even when plugin
+  details and projected token cost are available.
+- Bound inventory caching to a canonical live plugin-state hash covering install,
+  enablement, version, source, managed, scope, and update state.
+- Bound repository identity to bounded canonical manifest-content digests, rejected
+  symlinked manifests, propagated configured scan caps, and removed the inert
+  `deepScan` option (the legacy key is accepted and ignored during migration).
+- Added a versioned exact evidence-applicability contract and removed free-form
+  `suiteId` inference and generic routing evidence priors. Legacy records remain
+  readable but cannot authorize optimization.
+- Added centralized native fallback for partial inventory/repository inputs,
+  legacy inventory snapshots, stale/incompatible graphs, and unsupported Claude
+  environments. Hook validation now checks graph/profile algorithm versions.
+- Aligned generated inventory/profile/benchmark/config schemas with runtime types
+  and added `evidence.schema.json`.
+
 ## [1.0.0] - 2026-08-27
 
 ### Added

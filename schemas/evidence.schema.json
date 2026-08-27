@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cco.dev/schemas/evidence.schema.json",
+  "title": "EvidenceRecordV2",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "suiteId",
+    "taskFamily",
+    "claudeVersionFamily",
+    "model",
+    "baselineProfileHash",
+    "candidateProfileHash",
+    "trials",
+    "quality",
+    "cost",
+    "createdAt",
+    "status",
+    "applicability",
+    "statistics",
+    "qualification"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 2
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^evidence_"
+    },
+    "suiteId": {
+      "type": "string"
+    },
+    "taskFamily": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "claudeVersionFamily": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "baselineProfileHash": {
+      "type": "string"
+    },
+    "candidateProfileHash": {
+      "type": "string"
+    },
+    "trials": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baselineSuccess",
+        "candidateSuccess",
+        "difference",
+        "lowerBound",
+        "tolerance",
+        "nonInferior"
+      ],
+      "properties": {
+        "baselineSuccess": {
+          "type": "number"
+        },
+        "candidateSuccess": {
+          "type": "number"
+        },
+        "difference": {
+          "type": "number"
+        },
+        "lowerBound": {
+          "type": "number"
+        },
+        "tolerance": {
+          "type": "number"
+        },
+        "nonInferior": {
+          "type": "boolean"
+        },
+        "deterministicRegression": {
+          "type": "boolean"
+        }
+      }
+    },
+    "cost": {
+      "type": "object"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "enum": [
+        "active",
+        "quarantined"
+      ]
+    },
+    "applicability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capabilityIds",
+        "taskFamilies",
+        "claudeVersionFamily",
+        "model",
+        "optimizerVersion",
+        "graphVersion",
+        "classifierVersion",
+        "candidateProfileId",
+        "candidateSemanticsHash"
+      ],
+      "properties": {
+        "capabilityIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "taskFamilies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "claudeVersionFamily": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "optimizerVersion": {
+          "type": "string"
+        },
+        "graphVersion": {
+          "type": "string"
+        },
+        "classifierVersion": {
+          "type": "string"
+        },
+        "candidateProfileId": {
+          "type": "string"
+        },
+        "candidateSemanticsHash": {
+          "type": "string"
+        }
+      }
+    },
+    "statistics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "tolerancePolicy",
+        "deterministicRegression"
+      ],
+      "properties": {
+        "method": {
+          "const": "newcombe-wilson-v1"
+        },
+        "tolerancePolicy": {
+          "type": "string"
+        },
+        "deterministicRegression": {
+          "type": "boolean"
+        }
+      }
+    },
+    "qualification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "grade"
+      ],
+      "properties": {
+        "grade": {
+          "enum": [
+            "smoke",
+            "exploratory",
+            "public-claim"
+          ]
+        }
+      }
+    }
+  }
+}

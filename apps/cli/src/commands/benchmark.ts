@@ -4,7 +4,21 @@ import crypto from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { atomicWriteJson, readJsonIfExists } from '@cco/platform';
 import { DefaultBenchmarkRunner, type BenchmarkArm, type BenchmarkRun, type BenchmarkSuite } from '@cco/benchmark';
-import { CCO_VERSION, DefaultCapabilityGraphBuilder, DefaultProfileCompiler, DefaultSafetyValidator, type CompiledProfile, type EvidenceRecord, type InventorySnapshot, type OptimizationMode } from '@cco/core';
+import {
+  CCO_VERSION,
+  EVIDENCE_SCHEMA_VERSION,
+  EVIDENCE_STATISTICS_METHOD,
+  GRAPH_ALGORITHM_VERSION,
+  INTENT_CLASSIFIER_VERSION,
+  OPTIMIZER_MODEL_VERSION,
+  DefaultCapabilityGraphBuilder,
+  DefaultProfileCompiler,
+  DefaultSafetyValidator,
+  type CompiledProfile,
+  type EvidenceRecord,
+  type InventorySnapshot,
+  type OptimizationMode
+} from '@cco/core';
 import type { ClaudeEnvironment } from '@cco/claude-adapter';
 import { createContext, printJson } from '../context.js';
 import type { ParsedArgs } from '../argv.js';
@@ -132,10 +146,24 @@ async function runSubcommand(parsed: ParsedArgs): Promise<number> {
   const candidateMode = (flagString(parsed.flags, 'candidate') ?? 'safe') as OptimizationMode;
   if (!['safe', 'aggressive', 'observe', 'native'].includes(candidateMode)) { console.error('invalid --candidate mode'); return 2; }
   const inventory = await ctx.inventoryService.loadOrRefresh({ cwd: ctx.cwd });
-  const repo = await ctx.repoAnalyzer.fingerprint(ctx.cwd);
+  const repo = await ctx.repoAnalyzer.fingerprint(ctx.cwd, config.repository);
   const graph = new DefaultCapabilityGraphBuilder().build(inventory, repo);
   const evidence = { records: await ctx.store.listEvidence() };
-  const candidateProfile = new DefaultProfileCompiler().compile({ inventory, graph, repo, config, evidence, environment: env, mode: candidateMode });
+  const candidateProfile = new DefaultProfileCompiler().compile({
+    inventory,
+    graph,
+    repo,
+    config,
+    evidence,
+    environment: env,
+    mode: candidateMode,
+    taskFamilies: suite.taskFamily,
+    model: suite.claude.model ?? 'default'
+  });
+  if (candidateMode !== 'native' && candidateProfile.mode === 'native') {
+    console.error(`candidate compilation fell back to native: ${candidateProfile.fallbackReasons.join('; ')}`);
+    return 1;
+  }
   const validator = new DefaultSafetyValidator();
   const profileIssues = validator.validateProfile(candidateProfile, inventory);
   if (profileIssues.length > 0) {
@@ -169,7 +197,7 @@ async function runSubcommand(parsed: ParsedArgs): Promise<number> {
 
     if (run.verdict && (run.qualification.eligibleForOptimization || !run.verdict.nonInferior)) {
       const record: EvidenceRecord = {
-        schemaVersion: 1,
+        schemaVersion: EVIDENCE_SCHEMA_VERSION,
         id: 'evidence_' + run.runId,
         suiteId: suite.id,
         taskFamily: suite.taskFamily,
@@ -181,7 +209,24 @@ async function runSubcommand(parsed: ParsedArgs): Promise<number> {
         quality: run.verdict,
         cost: Object.fromEntries(run.arms.map((arm) => [arm.arm, arm.usageTotals])),
         createdAt: run.createdAt,
-        status: run.qualification.eligibleForOptimization ? 'active' : 'quarantined'
+        status: run.qualification.eligibleForOptimization ? 'active' : 'quarantined',
+        applicability: {
+          capabilityIds: candidateProfile.selected.prunedPluginIds,
+          taskFamilies: suite.taskFamily,
+          claudeVersionFamily: env.versionFamily,
+          model: suite.claude.model ?? 'default',
+          optimizerVersion: OPTIMIZER_MODEL_VERSION,
+          graphVersion: GRAPH_ALGORITHM_VERSION,
+          classifierVersion: INTENT_CLASSIFIER_VERSION,
+          candidateProfileId: candidateProfile.id,
+          candidateSemanticsHash: candidateProfile.semanticsHash
+        },
+        statistics: {
+          method: EVIDENCE_STATISTICS_METHOD,
+          tolerancePolicy: 'pre-registered-exact-v1',
+          deterministicRegression: run.verdict.deterministicRegression
+        },
+        qualification: { grade: run.qualification.grade }
       };
       await ctx.store.putSnapshot('evidence', record);
     }

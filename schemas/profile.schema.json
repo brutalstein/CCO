@@ -7,6 +7,7 @@
     "schemaVersion",
     "ccoVersion",
     "id",
+    "semanticsHash",
     "createdAt",
     "mode",
     "inventoryId",
@@ -17,6 +18,8 @@
     "overlay",
     "costProjection",
     "quality",
+    "fallbackReasons",
+    "algorithmVersions",
     "decisions",
     "runtimeCapabilityIds",
     "integrityHash"
@@ -25,7 +28,7 @@
   "properties": {
     "schemaVersion": {
       "type": "integer",
-      "const": 1
+      "const": 2
     },
     "ccoVersion": {
       "type": "string",
@@ -34,6 +37,9 @@
     "id": {
       "type": "string",
       "pattern": "^profile_"
+    },
+    "semanticsHash": {
+      "type": "string"
     },
     "createdAt": {
       "type": "string",
@@ -158,6 +164,32 @@
         }
       }
     },
+    "fallbackReasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "algorithmVersions": {
+      "type": "object",
+      "required": [
+        "optimizer",
+        "graph",
+        "classifier"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "optimizer": {
+          "type": "string"
+        },
+        "graph": {
+          "type": "string"
+        },
+        "classifier": {
+          "type": "string"
+        }
+      }
+    },
     "decisions": {
       "type": "array",
       "items": {
@@ -178,9 +210,7 @@
           "action": {
             "enum": [
               "keep",
-              "prune",
-              "pin",
-              "protect"
+              "prune"
             ]
           },
           "reasonCodes": {

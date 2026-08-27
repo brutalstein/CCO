@@ -20,6 +20,7 @@ export * from './planning/planner.js';
 export * from './optimization/pareto.js';
 export * from './optimization/optimizer.js';
 export * from './quality/gate.js';
+export * from './quality/evidence.js';
 export * from './cost/model.js';
 export * from './telemetry/events.js';
 export * from './hooks/handler.js';

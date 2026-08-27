@@ -14,6 +14,12 @@ trial (0 observed quality delta). This is a real live smoke result, but two
 trials are below the exploratory evidence floor and therefore do not establish
 statistical non-inferiority or authorize profile promotion.
 
+The published smoke artifact predates the v2 applicability contract. It remains
+readable and reproducible historical evidence, but it cannot authorize current
+aggressive pruning. New promotion-eligible records must carry the exact candidate
+semantics, capability set, runtime/model/task scope, algorithm versions,
+`newcombe-wilson-v1` method, deterministic-regression result, and tolerance policy.
+
 That run's measured token delta between arms was not large enough to be
 distinguishable from cache-variance noise at 2 trials, because on the
 machine it ran on almost every installed plugin was already relevant to the

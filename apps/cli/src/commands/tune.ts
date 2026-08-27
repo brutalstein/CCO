@@ -27,7 +27,9 @@ export async function cmdTune(parsed: ParsedArgs): Promise<number> {
   const evidence = (await loadAllEvidence(ctx.store.paths.evidenceDir)).filter((e) => !suiteFilter || e.suiteId === suiteFilter);
   const config = await ctx.store.readConfig();
 
-  const active = evidence.filter((e) => e.status === 'active' && e.quality.nonInferior);
+  // Tuning has no exact candidate/environment context. Persisted evidence therefore remains
+  // inspectable here but cannot authorize an automatic threshold change.
+  const active: EvidenceRecord[] = [];
   const suggestion =
     active.length >= 3 && config.routing.confidenceThreshold > 0.6
       ? { key: 'routing.confidenceThreshold', from: config.routing.confidenceThreshold, to: Math.max(0.6, Math.round((config.routing.confidenceThreshold - 0.02) * 100) / 100) }

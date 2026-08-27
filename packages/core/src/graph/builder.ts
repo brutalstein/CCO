@@ -30,7 +30,11 @@ export class DefaultCapabilityGraphBuilder implements CapabilityGraphBuilder {
     for (const plugin of inventory.plugins) {
       const pluginId = `plugin:${plugin.canonicalId}`;
       const details = inventory.pluginDetails[plugin.canonicalId];
-      const tags = extractTags(plugin.name, details?.description ?? plugin.name, 'metadata');
+      const semantic = classifySemanticUnits(
+        details?.description && details.description !== plugin.name ? [plugin.name, details.description] : [plugin.name],
+        'metadata'
+      );
+      const tags = semantic.tags;
       const affinity = repo ? repoAffinityBoost(tags, repo) : 0;
 
       nodes.push({
@@ -38,7 +42,7 @@ export class DefaultCapabilityGraphBuilder implements CapabilityGraphBuilder {
         type: 'plugin',
         ownerPluginId: null,
         displayName: plugin.name,
-        descriptionHash: canonicalHash(plugin.name),
+        descriptionHash: canonicalHash({ name: plugin.name, description: details?.description ?? null }),
         tags: affinity > 0 ? [...tags, { id: 'affine_to:repo', confidence: affinity, source: 'repo-fingerprint' }] : tags,
         availability: plugin.enabled ? 'baseline_enabled' : 'baseline_disabled',
         cost: {
@@ -46,7 +50,9 @@ export class DefaultCapabilityGraphBuilder implements CapabilityGraphBuilder {
           source: details ? (details.source as 'anthropic_projected' | 'unknown') : 'unknown'
         },
         riskFlags: details?.riskFlags ?? [],
-        metadataConfidence: details ? 0.95 : 0.5,
+        metadataParseConfidence: details ? 0.95 : 0.5,
+        semanticCoverage: semantic.semanticCoverage,
+        semanticClassificationConfidence: semantic.semanticClassificationConfidence,
         dependencies: (details?.dependencies ?? []).map((d) => `plugin:${d}`),
         managed: plugin.managed ?? false,
         protected: false,
@@ -59,7 +65,8 @@ export class DefaultCapabilityGraphBuilder implements CapabilityGraphBuilder {
 
       for (const comp of details?.components ?? []) {
         const compId = `${comp.type}:${plugin.canonicalId}/${comp.id}`;
-        const compTags = extractTags(comp.name, comp.name, 'metadata');
+        const componentSemantic = classifySemanticUnits([comp.name], 'metadata');
+        const compTags = componentSemantic.tags;
         nodes.push({
           id: compId,
           type: normalizeComponentType(comp.type),
@@ -70,7 +77,9 @@ export class DefaultCapabilityGraphBuilder implements CapabilityGraphBuilder {
           availability: plugin.enabled ? 'baseline_enabled' : 'baseline_disabled',
           cost: { source: 'unknown' },
           riskFlags: [],
-          metadataConfidence: 0.7,
+          metadataParseConfidence: 0.7,
+          semanticCoverage: componentSemantic.semanticCoverage,
+          semanticClassificationConfidence: componentSemantic.semanticClassificationConfidence,
           dependencies: [],
           managed: plugin.managed ?? false,
           protected: false,
@@ -110,6 +119,29 @@ export class DefaultCapabilityGraphBuilder implements CapabilityGraphBuilder {
     };
     return graph;
   }
+}
+
+function classifySemanticUnits(
+  units: string[],
+  source: string
+): { tags: CapabilityNode['tags']; semanticCoverage: number; semanticClassificationConfidence: number } {
+  const meaningfulUnits = [...new Set(units.map((unit) => unit.trim()).filter(Boolean))];
+  const byId = new Map<string, CapabilityNode['tags'][number]>();
+  let recognized = 0;
+  for (const unit of meaningfulUnits) {
+    const unitTags = extractTags('', unit, source);
+    if (unitTags.length > 0) recognized++;
+    for (const tag of unitTags) {
+      const existing = byId.get(tag.id);
+      if (!existing || existing.confidence < tag.confidence) byId.set(tag.id, tag);
+    }
+  }
+  const tags = [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+  return {
+    tags,
+    semanticCoverage: meaningfulUnits.length > 0 ? recognized / meaningfulUnits.length : 0,
+    semanticClassificationConfidence: tags.reduce((max, tag) => Math.max(max, tag.confidence), 0)
+  };
 }
 
 function normalizeComponentType(type: string): CapabilityNode['type'] {

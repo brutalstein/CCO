@@ -1,7 +1,8 @@
 import type { EvidenceIndex } from '../types.js';
-
-export type CandidateFingerprint = string;
-export type TaskFamilyKey = string[];
+import {
+  evaluateEvidenceApplicability,
+  type EvidenceApplicabilityContext
+} from './evidence.js';
 
 export interface QualityAssessment {
   status: 'proven-noninferior' | 'observational' | 'structural-only' | 'unknown' | 'regressed';
@@ -12,36 +13,22 @@ export interface QualityAssessment {
 }
 
 export interface QualityGate {
-  assess(candidate: CandidateFingerprint, task: TaskFamilyKey, evidence: EvidenceIndex): QualityAssessment;
+  assess(context: EvidenceApplicabilityContext, evidence: EvidenceIndex): QualityAssessment;
 }
 
 const PUBLIC_CLAIM_TRIALS = 10;
-const MIN_EXPLORATORY_TRIALS = 3;
 
-/**
- * Conservative non-inferiority gate (09_QUALITY_MODEL_AND_EVALS.md, 08_OPTIMIZATION_ENGINE.md
- * section 11). Absent evidence is `unknown`, never treated as safe-to-optimize (ADR-014).
- */
+/** Uses the same exact applicability contract as aggressive profile compilation. */
 export class DefaultQualityGate implements QualityGate {
-  assess(candidate: CandidateFingerprint, task: TaskFamilyKey, evidence: EvidenceIndex): QualityAssessment {
-    const matches = evidence.records.filter(
-      (r) => r.trials >= MIN_EXPLORATORY_TRIALS && (r.candidateProfileHash === candidate || r.baselineProfileHash === candidate) && r.taskFamily.some((f) => task.includes(f))
-    );
-    if (matches.length === 0) {
-      return { status: 'unknown', class: 'D', evidenceIds: [] };
-    }
-
-    const regressed = matches.find((r) => r.status === 'quarantined' || !r.quality.nonInferior);
-    if (regressed) {
-      return { status: 'regressed', class: 'D', evidenceIds: [regressed.id], lowerBound: regressed.quality.lowerBound, tolerance: regressed.quality.tolerance };
-    }
+  assess(context: EvidenceApplicabilityContext, evidence: EvidenceIndex): QualityAssessment {
+    const matches = evidence.records.filter((record) => evaluateEvidenceApplicability(record, context).eligible);
+    if (matches.length === 0) return { status: 'unknown', class: 'D', evidenceIds: [] };
 
     const best = matches.reduce((a, b) => (a.trials >= b.trials ? a : b));
-    const cls = best.trials >= PUBLIC_CLAIM_TRIALS ? 'A' : 'B';
     return {
       status: 'proven-noninferior',
-      class: cls,
-      evidenceIds: matches.map((m) => m.id),
+      class: best.trials >= PUBLIC_CLAIM_TRIALS ? 'A' : 'B',
+      evidenceIds: matches.map((record) => record.id),
       lowerBound: best.quality.lowerBound,
       tolerance: best.quality.tolerance
     };

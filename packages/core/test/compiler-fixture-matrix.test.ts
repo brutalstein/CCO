@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { DefaultProfileCompiler, type CompileProfileInput } from '../src/profile/compiler.js';
 import { defaultConfig } from '../src/config/defaults.js';
-import type { CapabilityGraph, CapabilityNode, CompiledProfile, InventorySnapshot, RepoFingerprint } from '../src/types.js';
+import { GRAPH_ALGORITHM_VERSION, type CapabilityGraph, type CapabilityNode, type CompiledProfile, type InventorySnapshot, type RepoFingerprint } from '../src/types.js';
 import { minimalFixture } from '@cco/claude-adapter';
 
 /**
@@ -26,7 +26,9 @@ function node(canonicalId: string, tags: string[], confidence: number, cost = 20
     availability: 'baseline_enabled',
     cost: { alwaysOnTokens: cost, source: confidence >= 0.8 ? 'anthropic_projected' : 'local_estimate' },
     riskFlags: [],
-    metadataConfidence: confidence,
+    metadataParseConfidence: confidence,
+    semanticCoverage: tags.length > 0 ? 1 : 0,
+    semanticClassificationConfidence: tags.length > 0 ? confidence : 0,
     dependencies: [],
     managed: false,
     protected: false,
@@ -35,12 +37,12 @@ function node(canonicalId: string, tags: string[], confidence: number, cost = 20
 }
 
 function makeGraph(nodes: CapabilityNode[], edges: CapabilityGraph['edges'] = []): CapabilityGraph {
-  return { schemaVersion: 1, inventoryFingerprint: 'inv', generatedAt: new Date().toISOString(), nodes, edges, buildAlgorithmVersion: 'graph-1', sourceHashes: {} };
+  return { schemaVersion: 2, inventoryFingerprint: 'inv_matrix', generatedAt: new Date().toISOString(), nodes, edges, buildAlgorithmVersion: GRAPH_ALGORITHM_VERSION, sourceHashes: { inventory: 'inv_matrix', repo: 'repo_matrix' } };
 }
 
 function makeRepo(domains: string[]): RepoFingerprint {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: 'repo_matrix',
     rootHash: 'r',
     git: { isRepo: true, branch: 'main', dirty: false },
@@ -55,7 +57,7 @@ function makeRepo(domains: string[]): RepoFingerprint {
 }
 
 function makeInventory(plugins: InventorySnapshot['plugins']): InventorySnapshot {
-  return { schemaVersion: 1, id: 'inv_matrix', capturedAt: new Date().toISOString(), claude: minimalFixture().environment, plugins, pluginDetails: {}, partial: false, missingSources: [] };
+  return { schemaVersion: 2, id: 'inv_matrix', capturedAt: new Date().toISOString(), claude: minimalFixture().environment, baselineStateHash: 'baseline_matrix', plugins, pluginDetails: {}, partial: false, missingSources: [] };
 }
 
 interface MatrixReport {
@@ -131,7 +133,7 @@ describe('Compiler fixture matrix (root CLAUDE.md section 9)', () => {
   it('Matrix C — many opaque (low-confidence) plugins: most preserved', () => {
     const repo = makeRepo(['backend-api']);
     const inventory = makeInventory([plugin('opaque-1@x'), plugin('opaque-2@x'), plugin('opaque-3@x'), plugin('api-tools@x')]);
-    // Below defaultConfig().optimization.metadataConfidenceMin (0.8): unknown-purpose plugins.
+    // Below the semantic-confidence floor (0.8): unknown-purpose plugins.
     const graph = makeGraph([
       node('opaque-1@x', [], 0.4),
       node('opaque-2@x', [], 0.4),
@@ -152,7 +154,7 @@ describe('Compiler fixture matrix (root CLAUDE.md section 9)', () => {
     const repo = makeRepo(['backend-api']);
     const inventory = makeInventory([plugin('api-tools@x'), plugin('crypto-lib@x')]);
     const graph = makeGraph(
-      [node('api-tools@x', ['domain:backend-api'], 0.95), node('crypto-lib@x', [], 0.95)],
+      [node('api-tools@x', ['domain:backend-api'], 0.95), node('crypto-lib@x', ['domain:frontend-ui'], 0.95)],
       [{ type: 'depends_on', from: 'plugin:api-tools@x', to: 'plugin:crypto-lib@x', confidence: 1, provenance: 'test' }]
     );
     const profile = compile({ inventory, graph, repo, config: defaultConfig(), evidence: { records: [] }, environment: minimalFixture().environment, mode: 'aggressive' });

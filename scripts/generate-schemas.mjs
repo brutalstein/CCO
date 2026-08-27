@@ -20,7 +20,7 @@ const configSchema = {
   required: ['schemaVersion', 'mode', 'profile', 'routing', 'optimization', 'repository', 'privacy', 'benchmark', 'experimental'],
   additionalProperties: false,
   properties: {
-    schemaVersion: { type: 'integer', const: 1 },
+    schemaVersion: { type: 'integer', const: 2 },
     mode: { enum: ['observe', 'safe', 'aggressive', 'native'] },
     profile: {
       type: 'object',
@@ -48,11 +48,12 @@ const configSchema = {
     },
     optimization: {
       type: 'object',
-      required: ['safePruneAffinityMax', 'metadataConfidenceMin', 'quality', 'modelOptimization', 'preferStableProfile'],
+      required: ['safePruneAffinityMax', 'semanticCoverageMin', 'semanticClassificationConfidenceMin', 'quality', 'modelOptimization', 'preferStableProfile'],
       additionalProperties: false,
       properties: {
         safePruneAffinityMax: { type: 'number', minimum: 0, maximum: 1 },
-        metadataConfidenceMin: { type: 'number', minimum: 0, maximum: 1 },
+        semanticCoverageMin: { type: 'number', exclusiveMinimum: 0, maximum: 1 },
+        semanticClassificationConfidenceMin: { type: 'number', minimum: 0, maximum: 1 },
         quality: {
           type: 'object',
           required: ['mode', 'defaultTolerance', 'minExploratoryTrialsPerArm', 'publicClaimTrialsPerArm'],
@@ -70,13 +71,12 @@ const configSchema = {
     },
     repository: {
       type: 'object',
-      required: ['maxTrackedFiles', 'maxManifestBytes', 'maxTotalParsedBytes', 'deepScan'],
+      required: ['maxTrackedFiles', 'maxManifestBytes', 'maxTotalParsedBytes'],
       additionalProperties: false,
       properties: {
         maxTrackedFiles: { type: 'integer', minimum: 1 },
         maxManifestBytes: { type: 'integer', minimum: 1 },
-        maxTotalParsedBytes: { type: 'integer', minimum: 1 },
-        deepScan: { type: 'boolean' }
+        maxTotalParsedBytes: { type: 'integer', minimum: 1 }
       }
     },
     privacy: {
@@ -127,30 +127,32 @@ const capabilityTagSchema = {
 
 const capabilityCostSchema = {
   type: 'object',
-  required: ['alwaysOnTokens', 'invokeTokens', 'source'],
+  required: ['source'],
   additionalProperties: false,
   properties: {
     alwaysOnTokens: { type: 'number', minimum: 0 },
-    invokeTokens: { type: ['number', 'null'], minimum: 0 },
+    invokeTokens: { type: 'number', minimum: 0 },
     source: { enum: ['anthropic_projected', 'local_estimate', 'unknown'] }
   }
 };
 
 const capabilityNodeSchema = {
   type: 'object',
-  required: ['id', 'type', 'ownerPluginId', 'displayName', 'descriptionHash', 'tags', 'availability', 'cost', 'riskFlags', 'metadataConfidence', 'dependencies', 'managed', 'protected', 'baselineEnabled'],
+  required: ['id', 'type', 'ownerPluginId', 'displayName', 'descriptionHash', 'tags', 'availability', 'cost', 'riskFlags', 'metadataParseConfidence', 'semanticCoverage', 'semanticClassificationConfidence', 'dependencies', 'managed', 'protected', 'baselineEnabled'],
   additionalProperties: false,
   properties: {
     id: { type: 'string' },
-    type: { enum: ['plugin', 'skill', 'agent', 'hook', 'mcp_server', 'lsp_server', 'workflow', 'instruction_source'] },
+    type: { enum: ['plugin', 'skill', 'agent', 'hook', 'mcp_server', 'mcp_tool', 'lsp_server', 'workflow', 'instruction_source', 'model_option'] },
     ownerPluginId: { type: ['string', 'null'] },
     displayName: { type: 'string' },
     descriptionHash: { type: 'string' },
     tags: { type: 'array', items: capabilityTagSchema },
-    availability: { enum: ['baseline_enabled', 'baseline_disabled', 'managed_forced', 'unavailable'] },
+    availability: { enum: ['baseline_disabled', 'baseline_enabled', 'profile_selected', 'profile_pruned', 'runtime_available'] },
     cost: capabilityCostSchema,
     riskFlags: { type: 'array', items: { type: 'string' } },
-    metadataConfidence: { type: 'number', minimum: 0, maximum: 1 },
+    metadataParseConfidence: { type: 'number', minimum: 0, maximum: 1 },
+    semanticCoverage: { type: 'number', minimum: 0, maximum: 1 },
+    semanticClassificationConfidence: { type: 'number', minimum: 0, maximum: 1 },
     dependencies: { type: 'array', items: { type: 'string' } },
     managed: { type: 'boolean' },
     protected: { type: 'boolean' },
@@ -163,36 +165,62 @@ const inventorySchema = {
   $id: 'https://cco.dev/schemas/inventory.schema.json',
   title: 'InventorySnapshot',
   type: 'object',
-  required: ['schemaVersion', 'id', 'capturedAt', 'claude', 'plugins', 'standalone', 'constraints', 'sourceFingerprints'],
+  required: ['schemaVersion', 'id', 'capturedAt', 'claude', 'baselineStateHash', 'plugins', 'pluginDetails', 'partial', 'missingSources'],
   additionalProperties: false,
   properties: {
-    schemaVersion: { type: 'integer', const: 1 },
+    schemaVersion: { type: 'integer', const: 2 },
     id: { type: 'string', pattern: '^inv_' },
     capturedAt: { type: 'string', format: 'date-time' },
     claude: {
-      type: 'object',
-      required: ['version', 'adapter', 'features'],
-      additionalProperties: false,
+      type: 'object', additionalProperties: false,
+      required: ['found', 'resolvedBinaryPath', 'version', 'versionFamily', 'features', 'toolSearchStatus', 'errors'],
       properties: {
-        version: { type: ['string', 'null'] },
-        adapter: { type: 'string' },
-        features: { type: 'object' }
+        found: { type: 'boolean' }, resolvedBinaryPath: { type: ['string', 'null'] }, version: { type: ['string', 'null'] },
+        versionFamily: { type: 'string' }, toolSearchStatus: { enum: ['deferred-supported', 'prefix-loaded-or-search-disabled', 'unknown'] },
+        errors: { type: 'array', items: { type: 'string' } },
+        features: {
+          type: 'object', additionalProperties: false,
+          required: ['pluginListJson', 'pluginDetails', 'settingsOverlay', 'toolSearchExpected', 'workflows', 'agentTeams'],
+          properties: {
+            pluginListJson: { type: 'boolean' }, pluginDetails: { type: 'boolean' }, settingsOverlay: { type: 'boolean' },
+            toolSearchExpected: { type: 'boolean' }, workflows: { type: 'boolean' }, agentTeams: { type: 'boolean' }
+          }
+        }
       }
     },
-    plugins: { type: 'array', items: { type: 'object' } },
-    standalone: {
-      type: 'object',
-      required: ['skills', 'agents', 'workflows', 'mcpServers'],
-      additionalProperties: false,
-      properties: {
-        skills: { type: 'array', items: capabilityNodeSchema },
-        agents: { type: 'array', items: capabilityNodeSchema },
-        workflows: { type: 'array', items: capabilityNodeSchema },
-        mcpServers: { type: 'array', items: capabilityNodeSchema }
+    baselineStateHash: { type: 'string' },
+    plugins: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['canonicalId', 'name', 'sourceType', 'enabled'],
+        properties: {
+          canonicalId: { type: 'string' }, name: { type: 'string' }, version: { type: 'string' },
+          sourceType: { type: 'string' }, enabled: { type: 'boolean' }, managed: { type: 'boolean' },
+          scope: { type: 'string' }, lastUpdated: { type: 'string' }, installPath: { type: 'string' }
+        }
       }
     },
-    constraints: { type: 'array', items: { type: 'object' } },
-    sourceFingerprints: { type: 'object' }
+    pluginDetails: {
+      type: 'object',
+      additionalProperties: {
+        type: 'object', additionalProperties: false,
+        required: ['source', 'dependencies', 'riskFlags', 'components'],
+        properties: {
+          alwaysOnTokens: { type: 'number', minimum: 0 }, source: { type: 'string' }, description: { type: 'string' },
+          dependencies: { type: 'array', items: { type: 'string' } }, riskFlags: { type: 'array', items: { type: 'string' } },
+          components: {
+            type: 'array', items: {
+              type: 'object', additionalProperties: false, required: ['type', 'id', 'name'],
+              properties: { type: { type: 'string' }, id: { type: 'string' }, name: { type: 'string' } }
+            }
+          }
+        }
+      }
+    },
+    partial: { type: 'boolean' },
+    missingSources: { type: 'array', items: { type: 'string' } }
   }
 };
 
@@ -202,7 +230,7 @@ const profileDecisionSchema = {
   additionalProperties: false,
   properties: {
     subjectId: { type: 'string' },
-    action: { enum: ['keep', 'prune', 'pin', 'protect'] },
+    action: { enum: ['keep', 'prune'] },
     reasonCodes: { type: 'array', items: { type: 'string' } },
     explanation: { type: 'string' },
     inputs: { type: 'object' },
@@ -215,12 +243,13 @@ const profileSchema = {
   $id: 'https://cco.dev/schemas/profile.schema.json',
   title: 'CompiledProfile',
   type: 'object',
-  required: ['schemaVersion', 'ccoVersion', 'id', 'createdAt', 'mode', 'inventoryId', 'repoFingerprintId', 'intentHash', 'baseline', 'selected', 'overlay', 'costProjection', 'quality', 'decisions', 'runtimeCapabilityIds', 'integrityHash'],
+  required: ['schemaVersion', 'ccoVersion', 'id', 'semanticsHash', 'createdAt', 'mode', 'inventoryId', 'repoFingerprintId', 'intentHash', 'baseline', 'selected', 'overlay', 'costProjection', 'quality', 'fallbackReasons', 'algorithmVersions', 'decisions', 'runtimeCapabilityIds', 'integrityHash'],
   additionalProperties: false,
   properties: {
-    schemaVersion: { type: 'integer', const: 1 },
+    schemaVersion: { type: 'integer', const: 2 },
     ccoVersion: { type: 'string', pattern: '^\\d+\\.\\d+\\.\\d+' },
     id: { type: 'string', pattern: '^profile_' },
+    semanticsHash: { type: 'string' },
     createdAt: { type: 'string', format: 'date-time' },
     mode: { enum: ['observe', 'safe', 'aggressive', 'native'] },
     inventoryId: { type: 'string' },
@@ -267,6 +296,13 @@ const profileSchema = {
         evidenceIds: { type: 'array', items: { type: 'string' } }
       }
     },
+    fallbackReasons: { type: 'array', items: { type: 'string' } },
+    algorithmVersions: {
+      type: 'object',
+      required: ['optimizer', 'graph', 'classifier'],
+      additionalProperties: false,
+      properties: { optimizer: { type: 'string' }, graph: { type: 'string' }, classifier: { type: 'string' } }
+    },
     decisions: { type: 'array', items: profileDecisionSchema },
     runtimeCapabilityIds: { type: 'array', items: { type: 'string' } },
     integrityHash: { type: 'string' }
@@ -281,7 +317,7 @@ const telemetrySchema = {
   required: ['schemaVersion', 'eventVersion', 'timestamp', 'type', 'ccoVersion', 'claudeVersion', 'projectId', 'sessionIdHash', 'payload'],
   additionalProperties: false,
   properties: {
-    schemaVersion: { type: 'integer', const: 1 },
+    schemaVersion: { type: 'integer', const: 2 },
     eventVersion: { type: 'integer', minimum: 1 },
     timestamp: { type: 'string', format: 'date-time' },
     type: { enum: ['session_start', 'session_launch', 'route', 'session_end', 'inventory_refresh', 'benchmark'] },
@@ -298,27 +334,74 @@ const benchmarkSuiteSchema = {
   $id: 'https://cco.dev/schemas/benchmark-suite.schema.json',
   title: 'BenchmarkSuite',
   type: 'object',
-  required: ['suiteId', 'version', 'taskFamily', 'trials', 'tolerance', 'tasks'],
+  required: ['schemaVersion', 'id', 'taskFamily', 'fixture', 'promptFile', 'claude', 'checks', 'trials'],
   additionalProperties: false,
   properties: {
-    suiteId: { type: 'string' },
-    version: { type: 'integer', minimum: 1 },
+    schemaVersion: { type: 'integer', minimum: 1 },
+    id: { type: 'string' },
     taskFamily: { type: 'array', items: { type: 'string' }, minItems: 1 },
+    fixture: {
+      type: 'object', required: ['type', 'path'], additionalProperties: false,
+      properties: { type: { const: 'local' }, path: { type: 'string' } }
+    },
+    promptFile: { type: 'string' },
+    claude: {
+      type: 'object', additionalProperties: false,
+      properties: { model: { type: 'string' }, maxTurns: { type: 'integer', minimum: 1 }, maxBudgetUsd: { type: 'number', minimum: 0 } }
+    },
     trials: { type: 'integer', minimum: 1 },
-    tolerance: { type: 'number', minimum: 0, maximum: 1 },
-    tasks: {
+    checks: {
       type: 'array',
-      minItems: 1,
       items: {
         type: 'object',
-        required: ['id', 'prompt', 'validators'],
+        required: ['type'],
         additionalProperties: false,
         properties: {
-          id: { type: 'string' },
-          prompt: { type: 'string' },
-          validators: { type: 'array', items: { type: 'object' } }
+          type: { enum: ['command', 'file-assertion'] }, commandId: { type: 'string' },
+          command: { type: 'array', items: { type: 'string' } }, rule: { type: 'string' }
         }
       }
+    }
+  }
+};
+
+const evidenceSchema = {
+  $schema: draft,
+  $id: 'https://cco.dev/schemas/evidence.schema.json',
+  title: 'EvidenceRecordV2',
+  type: 'object',
+  required: ['schemaVersion', 'id', 'suiteId', 'taskFamily', 'claudeVersionFamily', 'model', 'baselineProfileHash', 'candidateProfileHash', 'trials', 'quality', 'cost', 'createdAt', 'status', 'applicability', 'statistics', 'qualification'],
+  additionalProperties: false,
+  properties: {
+    schemaVersion: { const: 2 }, id: { type: 'string', pattern: '^evidence_' }, suiteId: { type: 'string' },
+    taskFamily: { type: 'array', items: { type: 'string' } }, claudeVersionFamily: { type: 'string' }, model: { type: 'string' },
+    baselineProfileHash: { type: 'string' }, candidateProfileHash: { type: 'string' }, trials: { type: 'integer', minimum: 1 },
+    quality: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['baselineSuccess', 'candidateSuccess', 'difference', 'lowerBound', 'tolerance', 'nonInferior'],
+      properties: {
+        baselineSuccess: { type: 'number' }, candidateSuccess: { type: 'number' }, difference: { type: 'number' },
+        lowerBound: { type: 'number' }, tolerance: { type: 'number' }, nonInferior: { type: 'boolean' }, deterministicRegression: { type: 'boolean' }
+      }
+    },
+    cost: { type: 'object' }, createdAt: { type: 'string', format: 'date-time' }, status: { enum: ['active', 'quarantined'] },
+    applicability: {
+      type: 'object', additionalProperties: false,
+      required: ['capabilityIds', 'taskFamilies', 'claudeVersionFamily', 'model', 'optimizerVersion', 'graphVersion', 'classifierVersion', 'candidateProfileId', 'candidateSemanticsHash'],
+      properties: {
+        capabilityIds: { type: 'array', items: { type: 'string' } }, taskFamilies: { type: 'array', items: { type: 'string' } },
+        claudeVersionFamily: { type: 'string' }, model: { type: 'string' }, optimizerVersion: { type: 'string' }, graphVersion: { type: 'string' },
+        classifierVersion: { type: 'string' }, candidateProfileId: { type: 'string' }, candidateSemanticsHash: { type: 'string' }
+      }
+    },
+    statistics: {
+      type: 'object', additionalProperties: false, required: ['method', 'tolerancePolicy', 'deterministicRegression'],
+      properties: { method: { const: 'newcombe-wilson-v1' }, tolerancePolicy: { type: 'string' }, deterministicRegression: { type: 'boolean' } }
+    },
+    qualification: {
+      type: 'object', additionalProperties: false, required: ['grade'],
+      properties: { grade: { enum: ['smoke', 'exploratory', 'public-claim'] } }
     }
   }
 };
@@ -328,7 +411,8 @@ const schemas = {
   'inventory.schema.json': inventorySchema,
   'profile.schema.json': profileSchema,
   'telemetry.schema.json': telemetrySchema,
-  'benchmark-suite.schema.json': benchmarkSuiteSchema
+  'benchmark-suite.schema.json': benchmarkSuiteSchema,
+  'evidence.schema.json': evidenceSchema
 };
 
 async function main() {

@@ -1,8 +1,12 @@
 import { canonicalHash } from '@cco/platform';
 import type { ClaudeEnvironment } from '@cco/claude-adapter';
 import { profileIntegrityHash } from '../security/validator.js';
+import { evaluateEvidenceApplicability } from '../quality/evidence.js';
 import {
   CCO_VERSION,
+  EVIDENCE_STATISTICS_METHOD,
+  GRAPH_ALGORITHM_VERSION,
+  INTENT_CLASSIFIER_VERSION,
   OPTIMIZER_MODEL_VERSION,
   SCHEMA_VERSION,
   type CapabilityGraph,
@@ -32,6 +36,8 @@ export interface CompileProfileInput {
   environment: ClaudeEnvironment;
   mode: OptimizationMode;
   explicitProfile?: NamedProfile;
+  taskFamilies?: string[];
+  model?: string;
 }
 
 export interface ProfileCompiler {
@@ -91,11 +97,35 @@ function envelopeAffinity(plugin: CapabilityNode, graph: CapabilityGraph, repo: 
 function structurallyIrrelevant(plugin: CapabilityNode, affinity: Affinity, config: CCOConfig): boolean {
   const max = config.optimization.safePruneAffinityMax;
   const taskOk = affinity.task === null || affinity.task <= max;
-  return affinity.repo <= max && taskOk && plugin.metadataConfidence >= config.optimization.metadataConfidenceMin;
+  return affinity.repo <= max && taskOk && plugin.semanticCoverage >= config.optimization.semanticCoverageMin &&
+    plugin.semanticClassificationConfidence >= config.optimization.semanticClassificationConfidenceMin;
+}
+
+function envelopeSemanticCertainty(plugin: CapabilityNode, graph: CapabilityGraph): { coverage: number; classificationConfidence: number } {
+  const nodes = [plugin, ...componentsOf(graph, plugin.id)];
+  return {
+    coverage: nodes.reduce((sum, node) => sum + node.semanticCoverage, 0) / nodes.length,
+    classificationConfidence: Math.max(...nodes.map((node) => node.semanticClassificationConfidence))
+  };
 }
 
 function hasStrongRelevance(affinity: Affinity): boolean {
   return affinity.repo > 0.5 || (affinity.task ?? 0) > 0.5;
+}
+
+function preflightReasons(input: CompileProfileInput): string[] {
+  const reasons: string[] = [];
+  if (input.inventory.schemaVersion !== SCHEMA_VERSION) reasons.push('INCOMPATIBLE_INVENTORY_SCHEMA');
+  if (input.repo.schemaVersion !== SCHEMA_VERSION) reasons.push('INCOMPATIBLE_REPOSITORY_SCHEMA');
+  if (input.graph.schemaVersion !== SCHEMA_VERSION) reasons.push('INCOMPATIBLE_GRAPH_SCHEMA');
+  if (!input.environment.found) reasons.push('UNSUPPORTED_CLAUDE_ENVIRONMENT');
+  if (!input.inventory.baselineStateHash) reasons.push('LEGACY_INVENTORY_WITHOUT_BASELINE_STATE');
+  if (input.inventory.partial) reasons.push('PARTIAL_INVENTORY');
+  if (input.repo.partial) reasons.push('PARTIAL_REPOSITORY');
+  if (input.graph.buildAlgorithmVersion !== GRAPH_ALGORITHM_VERSION) reasons.push('INCOMPATIBLE_GRAPH_ALGORITHM');
+  if (input.graph.inventoryFingerprint !== input.inventory.id || input.graph.sourceHashes.inventory !== input.inventory.id) reasons.push('STALE_GRAPH_INVENTORY');
+  if (input.graph.sourceHashes.repo !== input.repo.id) reasons.push('STALE_GRAPH_REPOSITORY');
+  return reasons;
 }
 
 /**
@@ -113,12 +143,18 @@ export class DefaultProfileCompiler implements ProfileCompiler {
       return this.build(input, baselineIds, [], decisions, 'native-no-delta');
     }
 
+    const fallbackReasons = preflightReasons(input);
+    if (fallbackReasons.length > 0) {
+      return this.build({ ...input, mode: 'native' }, baselineIds, [], decisions, 'native-fallback', fallbackReasons);
+    }
+
     const neverDisable = new Set([...config.profile.neverDisable, ...(input.explicitProfile?.neverDisable ?? [])]);
     const protectedIds = new Set([...config.profile.protected, ...(input.explicitProfile?.protectedIds ?? [])]);
     const excluded = new Set(input.explicitProfile?.excluded ?? []);
 
     const pruned: string[] = [];
     const kept: string[] = [];
+    const evidenceCandidates = new Set<string>();
 
     for (const canonicalId of baselineIds) {
       const record = inventory.plugins.find((p) => p.canonicalId === canonicalId)!;
@@ -156,6 +192,7 @@ export class DefaultProfileCompiler implements ProfileCompiler {
       }
 
       const affinity = envelopeAffinity(node, graph, repo, intent);
+      const semantic = envelopeSemanticCertainty(node, graph);
 
       if (mode === 'observe') {
         kept.push(canonicalId);
@@ -163,9 +200,14 @@ export class DefaultProfileCompiler implements ProfileCompiler {
         continue;
       }
 
-      if (node.metadataConfidence < config.optimization.metadataConfidenceMin) {
+      if (semantic.coverage < config.optimization.semanticCoverageMin || semantic.classificationConfidence < config.optimization.semanticClassificationConfidenceMin) {
         kept.push(canonicalId);
-        decisions.push(decision(canonicalId, 'keep', ['KEEP_UNCERTAIN'], 'metadata confidence below floor', { affinity, metadataConfidence: node.metadataConfidence }));
+        decisions.push(decision(canonicalId, 'keep', ['KEEP_UNCERTAIN'], 'semantic coverage or classification confidence below floor', {
+          affinity,
+          metadataParseConfidence: node.metadataParseConfidence,
+          semanticCoverage: semantic.coverage,
+          semanticClassificationConfidence: semantic.classificationConfidence
+        }));
         continue;
       }
 
@@ -176,21 +218,58 @@ export class DefaultProfileCompiler implements ProfileCompiler {
         continue;
       }
 
-      if (structurallyIrrelevant(node, affinity, config)) {
+      if (structurallyIrrelevant({
+        ...node,
+        semanticCoverage: semantic.coverage,
+        semanticClassificationConfidence: semantic.classificationConfidence
+      }, affinity, config)) {
         pruned.push(canonicalId);
         decisions.push(decision(canonicalId, 'prune', ['PRUNE_STRUCTURAL_IRRELEVANCE'], 'no repository/task affinity; no dependency', { affinity }));
         continue;
       }
 
-      const nonInferiorEvidenceId = this.findNonInferiorEvidence(input, canonicalId, graph);
-      if (mode === 'aggressive' && nonInferiorEvidenceId) {
-        pruned.push(canonicalId);
-        decisions.push(decision(canonicalId, 'prune', ['PRUNE_NONINFERIOR_REDUNDANT'], 'redundant with non-inferiority evidence', { affinity, evidenceId: nonInferiorEvidenceId }));
-        continue;
-      }
-
       kept.push(canonicalId);
       decisions.push(decision(canonicalId, 'keep', ['KEEP_UNCERTAIN'], 'insufficient evidence to prune safely', { affinity }));
+      if (mode === 'aggressive') evidenceCandidates.add(canonicalId);
+    }
+
+    if (mode === 'aggressive') {
+      for (const record of input.evidence.records) {
+        const rawCapabilityIds = record.applicability?.capabilityIds;
+        const capabilityIds = Array.isArray(rawCapabilityIds) ? rawCapabilityIds.filter((id): id is string => typeof id === 'string') : [];
+        if (capabilityIds.length === 0 || capabilityIds.some((id) => !evidenceCandidates.has(id) && !pruned.includes(id))) continue;
+        const proposedPruned = [...new Set([...pruned, ...capabilityIds])];
+        const proposedKept = baselineIds.filter((id) => !proposedPruned.includes(id));
+        const closed = this.closeDependencies(proposedKept, proposedPruned, decisions, graph);
+        if (capabilityIds.some((id) => !closed.finalPruned.includes(id))) continue;
+        const identity = profileSemanticIdentity(input, closed.finalKept, closed.finalPruned);
+        const applicability = evaluateEvidenceApplicability(record, {
+          capabilityIds,
+          taskFamilies: input.taskFamilies ?? [],
+          claudeVersionFamily: input.environment.versionFamily,
+          model: input.model ?? 'default',
+          optimizerVersion: OPTIMIZER_MODEL_VERSION,
+          graphVersion: GRAPH_ALGORITHM_VERSION,
+          classifierVersion: input.intent?.classifierVersion ?? INTENT_CLASSIFIER_VERSION,
+          candidateProfileId: identity.id,
+          candidateSemanticsHash: identity.semanticsHash,
+          baselineProfileId: 'native',
+          minimumTrials: input.config.optimization.quality.minExploratoryTrialsPerArm,
+          tolerancePolicy: 'pre-registered-exact-v1',
+          tolerance: input.config.optimization.quality.defaultTolerance
+        });
+        if (!applicability.eligible) continue;
+        for (const id of capabilityIds) {
+          if (!evidenceCandidates.has(id)) continue;
+          const keptIndex = kept.indexOf(id);
+          if (keptIndex >= 0) kept.splice(keptIndex, 1);
+          if (!pruned.includes(id)) pruned.push(id);
+          const decisionIndex = decisions.findIndex((item) => item.subjectId === id);
+          const replacement = decision(id, 'prune', ['PRUNE_NONINFERIOR_REDUNDANT'], 'exact candidate authorized by compatible non-inferiority evidence', { evidenceId: record.id });
+          if (decisionIndex >= 0) decisions[decisionIndex] = replacement;
+          else decisions.push(replacement);
+        }
+      }
     }
 
     const { finalKept, finalPruned, finalDecisions } = this.closeDependencies(kept, pruned, decisions, graph);
@@ -230,25 +309,19 @@ export class DefaultProfileCompiler implements ProfileCompiler {
     };
   }
 
-  private findNonInferiorEvidence(input: CompileProfileInput, canonicalId: string, _graph: CapabilityGraph): string | null {
-    const match = input.evidence.records.find(
-      (r) => r.status === 'active' && r.trials >= input.config.optimization.quality.minExploratoryTrialsPerArm && r.quality.nonInferior && r.suiteId.includes(canonicalId)
-    );
-    return match?.id ?? null;
-  }
-
   private build(
     input: CompileProfileInput,
     keptIds: string[],
     prunedIds: string[],
     decisions: ProfileDecision[],
-    qualityStatus: string
+    qualityStatus: string,
+    fallbackReasons: string[] = []
   ): CompiledProfile {
     const { inventory, graph, repo, intent, config, mode } = input;
     const baselineIds = inventory.plugins.filter((p) => p.enabled).map((p) => p.canonicalId);
     const intentHash = intent ? canonicalHash(intent) : null;
 
-    const id = 'profile_' + canonicalHash({ mode, inventoryId: inventory.id, repoId: repo.id, intentHash, config, explicitProfile: input.explicitProfile });
+    const identity = profileSemanticIdentity(input, keptIds, prunedIds);
 
     const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
     const costOf = (id2: string) => nodeById.get('plugin:' + id2)?.cost;
@@ -268,7 +341,8 @@ export class DefaultProfileCompiler implements ProfileCompiler {
     const profile: CompiledProfile = {
       schemaVersion: SCHEMA_VERSION,
       ccoVersion: CCO_VERSION,
-      id,
+      id: identity.id,
+      semanticsHash: identity.semanticsHash,
       createdAt: new Date().toISOString(),
       mode,
       inventoryId: inventory.id,
@@ -284,14 +358,40 @@ export class DefaultProfileCompiler implements ProfileCompiler {
         unknownAfter: unknownCount(keptIds)
       },
       quality: { status: qualityStatus, evidenceIds },
+      fallbackReasons,
+      algorithmVersions: { optimizer: OPTIMIZER_MODEL_VERSION, graph: GRAPH_ALGORITHM_VERSION, classifier: intent?.classifierVersion ?? INTENT_CLASSIFIER_VERSION },
       decisions,
       runtimeCapabilityIds,
       integrityHash: ''
     };
     profile.integrityHash = profileIntegrityHash(profile);
-    void OPTIMIZER_MODEL_VERSION;
     return profile;
   }
+}
+
+export function profileSemanticIdentity(
+  input: CompileProfileInput,
+  keptIds: string[],
+  prunedIds: string[]
+): { id: string; semanticsHash: string } {
+  const semanticsHash = canonicalHash({
+    schemaVersion: SCHEMA_VERSION,
+    mode: input.mode,
+    inventoryId: input.inventory.id,
+    baselineStateHash: input.inventory.baselineStateHash ?? null,
+    repoId: input.repo.id,
+    repoInputsHash: input.repo.fingerprintInputsHash,
+    intentHash: input.intent ? canonicalHash(input.intent) : null,
+    config: input.config,
+    explicitProfile: input.explicitProfile ?? null,
+    selected: keptIds.slice().sort(),
+    pruned: prunedIds.slice().sort(),
+    optimizerVersion: OPTIMIZER_MODEL_VERSION,
+    graphVersion: GRAPH_ALGORITHM_VERSION,
+    classifierVersion: input.intent?.classifierVersion ?? INTENT_CLASSIFIER_VERSION,
+    statisticsMethod: EVIDENCE_STATISTICS_METHOD
+  });
+  return { semanticsHash, id: 'profile_' + semanticsHash };
 }
 
 function decision(subjectId: string, action: 'keep' | 'prune', codes: ProfileReasonCode[], explanation: string, inputs: Record<string, unknown>): ProfileDecision {

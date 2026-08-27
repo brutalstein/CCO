@@ -4,21 +4,23 @@
   "title": "BenchmarkSuite",
   "type": "object",
   "required": [
-    "suiteId",
-    "version",
+    "schemaVersion",
+    "id",
     "taskFamily",
-    "trials",
-    "tolerance",
-    "tasks"
+    "fixture",
+    "promptFile",
+    "claude",
+    "checks",
+    "trials"
   ],
   "additionalProperties": false,
   "properties": {
-    "suiteId": {
-      "type": "string"
-    },
-    "version": {
+    "schemaVersion": {
       "type": "integer",
       "minimum": 1
+    },
+    "id": {
+      "type": "string"
     },
     "taskFamily": {
       "type": "array",
@@ -27,38 +29,72 @@
       },
       "minItems": 1
     },
+    "fixture": {
+      "type": "object",
+      "required": [
+        "type",
+        "path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "local"
+        },
+        "path": {
+          "type": "string"
+        }
+      }
+    },
+    "promptFile": {
+      "type": "string"
+    },
+    "claude": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "maxTurns": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxBudgetUsd": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
     "trials": {
       "type": "integer",
       "minimum": 1
     },
-    "tolerance": {
-      "type": "number",
-      "minimum": 0,
-      "maximum": 1
-    },
-    "tasks": {
+    "checks": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "type": "object",
         "required": [
-          "id",
-          "prompt",
-          "validators"
+          "type"
         ],
         "additionalProperties": false,
         "properties": {
-          "id": {
+          "type": {
+            "enum": [
+              "command",
+              "file-assertion"
+            ]
+          },
+          "commandId": {
             "type": "string"
           },
-          "prompt": {
-            "type": "string"
-          },
-          "validators": {
+          "command": {
             "type": "array",
             "items": {
-              "type": "object"
+              "type": "string"
             }
+          },
+          "rule": {
+            "type": "string"
           }
         }
       }

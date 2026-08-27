@@ -1,10 +1,12 @@
 import type { PluginInventorySource, ClaudeEnvironment } from '@cco/claude-adapter';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 export const CCO_VERSION = '1.0.0';
-export const OPTIMIZER_MODEL_VERSION = 'optimizer-1';
-export const GRAPH_ALGORITHM_VERSION = 'graph-1';
+export const OPTIMIZER_MODEL_VERSION = 'optimizer-2';
+export const GRAPH_ALGORITHM_VERSION = 'graph-2';
 export const INTENT_CLASSIFIER_VERSION = 'intent-1';
+export const EVIDENCE_SCHEMA_VERSION = 2;
+export const EVIDENCE_STATISTICS_METHOD = 'newcombe-wilson-v1';
 
 export type OptimizationMode = 'observe' | 'safe' | 'aggressive' | 'native';
 
@@ -49,7 +51,12 @@ export interface CapabilityNode {
   availability: Availability;
   cost: CapabilityCost;
   riskFlags: string[];
-  metadataConfidence: number;
+  /** Confidence that capability metadata was collected and parsed successfully. */
+  metadataParseConfidence: number;
+  /** Fraction of semantic units that produced at least one recognized tag. */
+  semanticCoverage: number;
+  /** Confidence in the strongest recognized semantic classification. */
+  semanticClassificationConfidence: number;
   dependencies: string[];
   managed: boolean;
   protected: boolean;
@@ -91,6 +98,8 @@ export interface InventorySnapshot {
   id: string;
   capturedAt: string;
   claude: ClaudeEnvironment;
+  /** Canonical hash of the cheap live plugin-list state. Absent only on legacy snapshots. */
+  baselineStateHash?: string;
   plugins: PluginInventorySource[];
   pluginDetails: Record<string, { alwaysOnTokens?: number; source: string; description?: string; dependencies: string[]; riskFlags: string[]; components: { type: string; id: string; name: string }[] }>;
   partial: boolean;
@@ -156,6 +165,7 @@ export interface CompiledProfile {
   schemaVersion: number;
   ccoVersion: string;
   id: string;
+  semanticsHash: string;
   createdAt: string;
   mode: OptimizationMode;
   inventoryId: string;
@@ -171,6 +181,8 @@ export interface CompiledProfile {
     unknownAfter: number;
   };
   quality: { status: string; evidenceIds: string[] };
+  fallbackReasons: string[];
+  algorithmVersions: { optimizer: string; graph: string; classifier: string };
   decisions: ProfileDecision[];
   runtimeCapabilityIds: string[];
   integrityHash: string;
@@ -220,10 +232,28 @@ export interface EvidenceRecord {
     lowerBound: number;
     tolerance: number;
     nonInferior: boolean;
+    deterministicRegression?: boolean;
   };
   cost: Record<string, unknown>;
   createdAt: string;
   status: 'active' | 'quarantined';
+  applicability?: {
+    capabilityIds: string[];
+    taskFamilies: string[];
+    claudeVersionFamily: string;
+    model: string;
+    optimizerVersion: string;
+    graphVersion: string;
+    classifierVersion: string;
+    candidateProfileId: string;
+    candidateSemanticsHash: string;
+  };
+  statistics?: {
+    method: string;
+    tolerancePolicy: string;
+    deterministicRegression: boolean;
+  };
+  qualification?: { grade: 'smoke' | 'exploratory' | 'public-claim' };
 }
 
 export interface EvidenceIndex {
@@ -244,7 +274,8 @@ export interface CCOConfig {
   };
   optimization: {
     safePruneAffinityMax: number;
-    metadataConfidenceMin: number;
+    semanticCoverageMin: number;
+    semanticClassificationConfidenceMin: number;
     quality: {
       mode: 'non-inferiority';
       defaultTolerance: number;
@@ -254,7 +285,7 @@ export interface CCOConfig {
     modelOptimization: boolean;
     preferStableProfile: boolean;
   };
-  repository: { maxTrackedFiles: number; maxManifestBytes: number; maxTotalParsedBytes: number; deepScan: boolean };
+  repository: { maxTrackedFiles: number; maxManifestBytes: number; maxTotalParsedBytes: number };
   privacy: {
     storeRawPrompts: boolean;
     storeTranscriptContent: boolean;

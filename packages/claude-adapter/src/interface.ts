@@ -41,6 +41,8 @@ export interface PluginInventorySource {
   sourceType: string;
   enabled: boolean;
   managed?: boolean;
+  scope?: string;
+  lastUpdated?: string;
   /** Claude-owned installed plugin directory; used only for bounded, non-executing deep audit. */
   installPath?: string;
 }

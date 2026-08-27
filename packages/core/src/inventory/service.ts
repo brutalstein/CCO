@@ -1,11 +1,12 @@
 import { canonicalHash } from '@cco/platform';
-import type { ClaudeAdapter, ClaudeEnvironment } from '@cco/claude-adapter';
+import type { ClaudeAdapter, ClaudeEnvironment, PluginInventorySource } from '@cco/claude-adapter';
 import type { StateStore } from '../state/store.js';
 import { SCHEMA_VERSION, type InventorySnapshot } from '../types.js';
 
 export interface InventoryFingerprintInput {
   claudeVersion: string | null;
   cwd: string;
+  baselineStateHash: string;
 }
 
 export interface InventoryRequest {
@@ -26,6 +27,36 @@ export interface InventoryService {
 
 const DETAILS_CONCURRENCY = 4;
 
+export interface NormalizedPluginBaselineState {
+  canonicalId: string;
+  name: string;
+  enabled: boolean;
+  version: string | null;
+  sourceType: string;
+  managed: boolean;
+  scope: string | null;
+  lastUpdated: string | null;
+  installPathHash: string | null;
+}
+
+export function normalizePluginBaselineState(plugins: PluginInventorySource[]): NormalizedPluginBaselineState[] {
+  return plugins.map((plugin) => ({
+    canonicalId: plugin.canonicalId,
+    name: plugin.name,
+    enabled: plugin.enabled,
+    version: plugin.version ?? null,
+    sourceType: plugin.sourceType,
+    managed: plugin.managed ?? false,
+    scope: plugin.scope ?? null,
+    lastUpdated: plugin.lastUpdated ?? null,
+    installPathHash: plugin.installPath ? canonicalHash(plugin.installPath) : null
+  })).sort((a, b) => a.canonicalId.localeCompare(b.canonicalId) || a.name.localeCompare(b.name));
+}
+
+export function pluginBaselineStateHash(plugins: PluginInventorySource[]): string {
+  return canonicalHash(normalizePluginBaselineState(plugins));
+}
+
 export class DefaultInventoryService implements InventoryService {
   constructor(
     private readonly adapter: ClaudeAdapter,
@@ -33,23 +64,25 @@ export class DefaultInventoryService implements InventoryService {
   ) {}
 
   async fingerprint(input: InventoryFingerprintInput): Promise<string> {
-    return `inv_${canonicalHash({ version: input.claudeVersion, cwd: input.cwd })}`;
+    return `inv_${canonicalHash({ schemaVersion: SCHEMA_VERSION, version: input.claudeVersion, cwd: input.cwd, baselineStateHash: input.baselineStateHash })}`;
   }
 
   async loadOrRefresh(request: InventoryRequest): Promise<InventorySnapshot> {
     const env: ClaudeEnvironment = await this.adapter.probe({ claudeBinaryHint: request.claudeBinaryHint, cwd: request.cwd });
-    const fp = await this.fingerprint({ claudeVersion: env.version, cwd: request.cwd });
-
-    if (!request.forceRefresh) {
-      const cached = await this.store.getSnapshot<InventorySnapshot>('inventory', fp);
-      if (cached) return cached;
-    }
-
     if (!env.found) {
+      const fp = await this.fingerprint({ claudeVersion: env.version, cwd: request.cwd, baselineStateHash: 'unavailable' });
       return this.emptySnapshot(fp, env, ['claude binary not found']);
     }
 
     const plugins = await this.adapter.listPlugins({ cwd: request.cwd, env });
+    const baselineStateHash = pluginBaselineStateHash(plugins);
+    const fp = await this.fingerprint({ claudeVersion: env.version, cwd: request.cwd, baselineStateHash });
+
+    if (!request.forceRefresh && plugins.length > 0) {
+      const cached = await this.store.getSnapshot<InventorySnapshot>('inventory', fp);
+      if (cached?.schemaVersion === SCHEMA_VERSION && cached.baselineStateHash === baselineStateHash) return cached;
+    }
+
     const missingSources: string[] = [];
     const pluginDetails: InventorySnapshot['pluginDetails'] = {};
 
@@ -86,6 +119,7 @@ export class DefaultInventoryService implements InventoryService {
       id: fp,
       capturedAt: new Date().toISOString(),
       claude: env,
+      baselineStateHash,
       plugins,
       pluginDetails,
       partial: missingSources.length > 0 || plugins.length === 0,
@@ -102,6 +136,7 @@ export class DefaultInventoryService implements InventoryService {
       id: fp,
       capturedAt: new Date().toISOString(),
       claude: env,
+      baselineStateHash: 'unavailable',
       plugins: [],
       pluginDetails: {},
       partial: true,

@@ -1,4 +1,4 @@
-import { DefaultCapabilityGraphBuilder, DefaultIntentClassifier, DefaultProfileCompiler, type OptimizationMode } from '@cco/core';
+import { DefaultCapabilityGraphBuilder, DefaultIntentClassifier, DefaultProfileCompiler, taskFamiliesFromIntent, type OptimizationMode } from '@cco/core';
 import { renderAnalyzeReport } from '@cco/report';
 import { createContext, printJson } from '../context.js';
 import type { ParsedArgs } from '../argv.js';
@@ -20,13 +20,14 @@ export async function cmdAnalyze(parsed: ParsedArgs): Promise<number> {
   const env = await ctx.adapter.probe({ cwd: ctx.cwd });
   const config = await ctx.store.readConfig();
   const inventory = await ctx.inventoryService.loadOrRefresh({ cwd: ctx.cwd });
-  const repo = await ctx.repoAnalyzer.fingerprint(ctx.cwd);
+  const repo = await ctx.repoAnalyzer.fingerprint(ctx.cwd, config.repository);
   const graph = new DefaultCapabilityGraphBuilder().build(inventory, repo);
   const intentText = flagString(parsed.flags, 'intent');
   const intent = intentText ? new DefaultIntentClassifier().classify({ prompt: intentText, repo }) : undefined;
+  const taskFamilies = taskFamiliesFromIntent(intent);
 
   const evidence = { records: await ctx.store.listEvidence() };
-  const profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence, environment: env, mode });
+  const profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence, environment: env, mode, taskFamilies, model: flagString(parsed.flags, 'model') ?? 'default' });
 
   if (json) {
     printJson(profile, 'analyze');

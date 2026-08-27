@@ -36,6 +36,8 @@ export function parsePluginListJson(raw: string): PluginInventorySource[] {
       sourceType: typeof e.source === 'string' ? e.source : typeof e.sourceType === 'string' ? e.sourceType : 'unknown',
       enabled: e.enabled === true,
       managed: e.managed === true,
+      scope: typeof e.scope === 'string' ? e.scope : undefined,
+      lastUpdated: typeof e.lastUpdated === 'string' ? e.lastUpdated : undefined,
       installPath: typeof e.installPath === 'string' ? e.installPath : undefined
     });
   }

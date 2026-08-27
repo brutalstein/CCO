@@ -6,7 +6,7 @@ import { minimalFixture, FakeClaudeAdapter } from '@cco/claude-adapter';
 import { JsonStateStore, type InventorySnapshot, type RepoFingerprint } from '@cco/core';
 import type { CliContext } from '../src/context.js';
 import { stateRootFromArgv } from '../src/context.js';
-import { conflictingSettingsArg, isRecursiveClaudeBinary, runLaunch } from '../src/process-launch.js';
+import { conflictingSettingsArg, isRecursiveClaudeBinary, modelFromClaudeArgs, runLaunch } from '../src/process-launch.js';
 
 const dirs: string[] = [];
 
@@ -34,6 +34,12 @@ describe('launch safety', () => {
     expect(conflictingSettingsArg(['--settings', 'user.json'])).toBe('--settings');
     expect(conflictingSettingsArg(['--settings={"x":1}'])).toBe('--settings={"x":1}');
     expect(conflictingSettingsArg(['--model', 'opus'])).toBeNull();
+  });
+
+  it('binds evidence scope to the actual Claude model argument', () => {
+    expect(modelFromClaudeArgs(['--model', 'opus'])).toBe('opus');
+    expect(modelFromClaudeArgs(['--model=sonnet'])).toBe('sonnet');
+    expect(modelFromClaudeArgs([])).toBe('default');
   });
 
   it('E09: native fallback preserves user Claude arguments exactly', async () => {
@@ -87,17 +93,18 @@ describe('launch safety', () => {
 
     const fixture = minimalFixture();
     const inventory: InventorySnapshot = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: 'inv_launch',
       capturedAt: '2026-01-01T00:00:00.000Z',
       claude: fixture.environment,
+      baselineStateHash: 'baseline_launch',
       plugins: [],
       pluginDetails: {},
       partial: false,
       missingSources: []
     };
     const repo: RepoFingerprint = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: 'repo_launch',
       rootHash: 'root',
       git: { isRepo: true, branch: 'main', dirty: false },
@@ -129,5 +136,45 @@ describe('launch safety', () => {
     expect(result.exitCode).toBe(23);
     expect(await fs.readFile(settingsPath, 'utf8')).toBe(settingsBytes);
     await expect(fs.stat(overlayPath)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('fails open without creating an overlay when compiler inputs are partial', async () => {
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), 'cco-launch-partial-'));
+    dirs.push(base);
+    const fixture = minimalFixture();
+    const inventory: InventorySnapshot = {
+      schemaVersion: 2,
+      id: 'inv_partial',
+      capturedAt: '2026-08-27T00:00:00.000Z',
+      claude: fixture.environment,
+      baselineStateHash: 'baseline_partial',
+      plugins: [{ canonicalId: 'unknown@x', name: 'unknown', sourceType: 'marketplace', enabled: true }],
+      pluginDetails: {},
+      partial: true,
+      missingSources: ['unknown@x']
+    };
+    const repo: RepoFingerprint = {
+      schemaVersion: 2,
+      id: 'repo_partial_launch',
+      rootHash: 'root',
+      git: { isRepo: false, branch: null, dirty: false },
+      languages: [], frameworks: [], domains: [], manifests: [],
+      workspaceKind: 'single-package', partial: false, fingerprintInputsHash: 'inputs'
+    };
+    const spawnInteractive = vi.fn(async () => ({ code: 0, signal: null }));
+    const ctx: CliContext = {
+      adapter: new FakeClaudeAdapter(fixture),
+      launcher: { spawnInteractive, runCapture: vi.fn() },
+      store: new JsonStateStore(path.join(base, 'state')),
+      inventoryService: { loadOrRefresh: vi.fn(async () => inventory) } as unknown as CliContext['inventoryService'],
+      repoAnalyzer: { fingerprint: vi.fn(async () => repo) } as unknown as CliContext['repoAnalyzer'],
+      cwd: base,
+      json: false
+    };
+
+    const result = await runLaunch(ctx, { mode: 'safe', strict: true, claudeArgs: [] });
+    expect(result).toMatchObject({ exitCode: 3, usedNativeFallback: true });
+    expect(result.reasons).toContain('PARTIAL_INVENTORY');
+    expect(spawnInteractive).not.toHaveBeenCalled();
   });
 });

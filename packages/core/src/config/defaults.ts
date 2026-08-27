@@ -16,7 +16,8 @@ export function defaultConfig(): CCOConfig {
     },
     optimization: {
       safePruneAffinityMax: 0.08,
-      metadataConfidenceMin: 0.8,
+      semanticCoverageMin: 0.5,
+      semanticClassificationConfidenceMin: 0.8,
       quality: {
         mode: 'non-inferiority',
         defaultTolerance: 0.0,
@@ -26,7 +27,7 @@ export function defaultConfig(): CCOConfig {
       modelOptimization: false,
       preferStableProfile: true
     },
-    repository: { maxTrackedFiles: 50000, maxManifestBytes: 262144, maxTotalParsedBytes: 4194304, deepScan: false },
+    repository: { maxTrackedFiles: 50000, maxManifestBytes: 262144, maxTotalParsedBytes: 4194304 },
     privacy: {
       storeRawPrompts: false,
       storeTranscriptContent: false,

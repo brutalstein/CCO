@@ -1,6 +1,6 @@
 import { validateOverlayMonotonic, type ValidatedOverlay } from '@cco/claude-adapter';
 import { canonicalHash } from '@cco/platform';
-import { CCO_VERSION, SCHEMA_VERSION, type CapabilityGraph, type CompiledProfile, type InventorySnapshot } from '../types.js';
+import { CCO_VERSION, GRAPH_ALGORITHM_VERSION, INTENT_CLASSIFIER_VERSION, OPTIMIZER_MODEL_VERSION, SCHEMA_VERSION, type CapabilityGraph, type CompiledProfile, type InventorySnapshot } from '../types.js';
 
 export interface ValidationIssue {
   code: string;
@@ -32,6 +32,9 @@ export function validateProfileIntegrity(profile: CompiledProfile, runtimeVersio
   if (!profile.ccoVersion || major(profile.ccoVersion) !== major(runtimeVersion)) {
     issues.push({ code: 'CCO_VERSION_MISMATCH', message: 'CLI/plugin major versions do not match' });
   }
+  if (profile.algorithmVersions?.optimizer !== OPTIMIZER_MODEL_VERSION || profile.algorithmVersions?.graph !== GRAPH_ALGORITHM_VERSION || profile.algorithmVersions?.classifier !== INTENT_CLASSIFIER_VERSION) {
+    issues.push({ code: 'PROFILE_ALGORITHM_MISMATCH', message: 'profile algorithm versions are incompatible with this runtime' });
+  }
   if (profile.integrityHash !== profileIntegrityHash(profile)) {
     issues.push({ code: 'PROFILE_INTEGRITY', message: 'profile integrity hash is invalid' });
   }
@@ -51,6 +54,7 @@ export function validateHookArtifacts(
   }
   if (
     graph.schemaVersion !== SCHEMA_VERSION ||
+    graph.buildAlgorithmVersion !== GRAPH_ALGORITHM_VERSION ||
     graph.inventoryFingerprint !== profile.inventoryId ||
     graph.sourceHashes.repo !== profile.repoFingerprintId
   ) {

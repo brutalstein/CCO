@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   CCO_VERSION,
+  GRAPH_ALGORITHM_VERSION,
+  INTENT_CLASSIFIER_VERSION,
+  OPTIMIZER_MODEL_VERSION,
   profileIntegrityHash,
   sessionStartDigest,
   userPromptSubmitRoute,
@@ -11,7 +14,7 @@ import {
 
 function artifacts(): { profile: CompiledProfile; graph: CapabilityGraph } {
   const graph: CapabilityGraph = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     inventoryFingerprint: 'inv_fixture',
     generatedAt: new Date(0).toISOString(),
     nodes: [{
@@ -24,20 +27,23 @@ function artifacts(): { profile: CompiledProfile; graph: CapabilityGraph } {
       availability: 'runtime_available',
       cost: { source: 'unknown' },
       riskFlags: [],
-      metadataConfidence: 1,
+      metadataParseConfidence: 1,
+      semanticCoverage: 1,
+      semanticClassificationConfidence: 1,
       dependencies: [],
       managed: false,
       protected: false,
       baselineEnabled: true
     }],
     edges: [],
-    buildAlgorithmVersion: 'graph-1',
+    buildAlgorithmVersion: GRAPH_ALGORITHM_VERSION,
     sourceHashes: { inventory: 'inv_fixture', repo: 'repo_fixture' }
   };
   const profile: CompiledProfile = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     ccoVersion: CCO_VERSION,
     id: 'profile_fixture',
+    semanticsHash: 'semantics_fixture',
     createdAt: new Date(0).toISOString(),
     mode: 'safe',
     inventoryId: 'inv_fixture',
@@ -48,6 +54,8 @@ function artifacts(): { profile: CompiledProfile; graph: CapabilityGraph } {
     overlay: { enabledPlugins: {} },
     costProjection: { alwaysOnBefore: 10, alwaysOnAfter: 10, unknownBefore: 0, unknownAfter: 0 },
     quality: { status: 'compiled', evidenceIds: [] },
+    fallbackReasons: [],
+    algorithmVersions: { optimizer: OPTIMIZER_MODEL_VERSION, graph: GRAPH_ALGORITHM_VERSION, classifier: INTENT_CLASSIFIER_VERSION },
     decisions: [],
     runtimeCapabilityIds: ['skill:fixture/review'],
     integrityHash: ''

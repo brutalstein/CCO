@@ -22,7 +22,7 @@ const DICTIONARY: Array<{ tag: string; keywords: string[] }> = [
   // 'design' deliberately excluded: too generic ("design a database schema", "design an API")
   // to be a reliable frontend-only signal even with whole-word matching.
   { tag: 'domain:frontend-ui', keywords: ['frontend', 'ui', 'css', 'component'] },
-  { tag: 'domain:backend-api', keywords: ['backend', 'api', 'server', 'express', 'fastify', 'rest api'] },
+  { tag: 'domain:backend-api', keywords: ['backend', 'api', 'express', 'fastify', 'rest api'] },
   { tag: 'domain:mobile', keywords: ['ios', 'android', 'mobile', 'swift', 'kotlin'] },
   { tag: 'domain:infrastructure', keywords: ['kubernetes', 'docker', 'terraform', 'deploy', 'ci/cd', 'infrastructure'] },
   { tag: 'operation:code-review', keywords: ['review', 'code review'] },

@@ -10,6 +10,7 @@ import {
   buildEvent,
   projectIdFromRoot,
   graphSnapshotId,
+  taskFamiliesFromIntent,
   type CapabilityGraph,
   type OptimizationMode,
   type TaskIntent
@@ -45,6 +46,15 @@ export function isRecursiveClaudeBinary(binary: string): boolean {
 
 function makeIntent(prompt: string): TaskIntent {
   return new DefaultIntentClassifier().classify({ prompt });
+}
+
+export function modelFromClaudeArgs(args: string[]): string {
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === '--model' && args[index + 1]) return args[index + 1];
+    if (arg.startsWith('--model=')) return arg.slice('--model='.length) || 'default';
+  }
+  return 'default';
 }
 
 function unlinkQuiet(filePath: string): void {
@@ -88,14 +98,24 @@ export async function runLaunch(ctx: CliContext, options: LaunchOptions): Promis
 
   const config = await ctx.store.readConfig();
   const inventory = await ctx.inventoryService.loadOrRefresh({ cwd: ctx.cwd });
-  const repo = await ctx.repoAnalyzer.fingerprint(ctx.cwd);
+  const repo = await ctx.repoAnalyzer.fingerprint(ctx.cwd, config.repository);
   const graph: CapabilityGraph = new DefaultCapabilityGraphBuilder().build(inventory, repo);
   const intent = options.intentPrompt ? makeIntent(options.intentPrompt) : undefined;
   const evidence = { records: await ctx.store.listEvidence() };
 
   let mode = options.mode;
   let reasons: string[] = [];
-  let profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence, environment: env, mode });
+  const compilationScope = { taskFamilies: taskFamiliesFromIntent(intent), model: modelFromClaudeArgs(options.claudeArgs) };
+  let profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence, environment: env, mode, ...compilationScope });
+
+  if (mode !== 'native' && profile.mode === 'native') {
+    const fallback = profile.fallbackReasons.length > 0 ? profile.fallbackReasons : ['optimizer preflight rejected current inputs'];
+    if (options.strict) {
+      return { exitCode: 3, usedNativeFallback: true, reasons: fallback, alwaysOnBefore: profile.costProjection.alwaysOnBefore, alwaysOnAfter: profile.costProjection.alwaysOnBefore };
+    }
+    reasons = fallback.map((reason) => 'fallback: ' + reason);
+    mode = 'native';
+  }
 
   const validator = new DefaultSafetyValidator();
   const profileIssues = validator.validateProfile(profile, inventory);
@@ -105,7 +125,7 @@ export async function runLaunch(ctx: CliContext, options: LaunchOptions): Promis
     }
     reasons = profileIssues.map((i) => 'fallback: ' + i.message);
     mode = 'native';
-    profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence, environment: env, mode });
+    profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence, environment: env, mode, ...compilationScope });
   }
 
   const overlay = await ctx.adapter.buildSettingsOverlay({ enabledPluginDelta: profile.overlay.enabledPlugins, env: {} }, null);
@@ -116,7 +136,7 @@ export async function runLaunch(ctx: CliContext, options: LaunchOptions): Promis
     }
     reasons = [...reasons, ...overlayIssues.map((i) => 'fallback: ' + i.message)];
     mode = 'native';
-    profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence, environment: env, mode: 'native' });
+    profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence, environment: env, mode: 'native', ...compilationScope });
   }
 
   const forcedFallback = reasons.length > 0;

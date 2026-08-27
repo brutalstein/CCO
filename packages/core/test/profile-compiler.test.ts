@@ -1,7 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { DefaultProfileCompiler, type CompileProfileInput } from '../src/profile/compiler.js';
+import { DefaultProfileCompiler, profileSemanticIdentity, type CompileProfileInput } from '../src/profile/compiler.js';
 import { defaultConfig } from '../src/config/defaults.js';
-import type { CapabilityGraph, CapabilityNode, InventorySnapshot, RepoFingerprint } from '../src/types.js';
+import {
+  EVIDENCE_SCHEMA_VERSION,
+  EVIDENCE_STATISTICS_METHOD,
+  GRAPH_ALGORITHM_VERSION,
+  INTENT_CLASSIFIER_VERSION,
+  OPTIMIZER_MODEL_VERSION,
+  type CapabilityGraph,
+  type CapabilityNode,
+  type EvidenceRecord,
+  type InventorySnapshot,
+  type RepoFingerprint
+} from '../src/types.js';
 import { minimalFixture } from '@cco/claude-adapter';
 
 function node(id: string, tags: string[], confidence = 0.95): CapabilityNode {
@@ -15,7 +26,9 @@ function node(id: string, tags: string[], confidence = 0.95): CapabilityNode {
     availability: 'baseline_enabled',
     cost: { alwaysOnTokens: 200, source: 'anthropic_projected' },
     riskFlags: [],
-    metadataConfidence: confidence,
+    metadataParseConfidence: confidence,
+    semanticCoverage: tags.length > 0 ? 1 : 0,
+    semanticClassificationConfidence: tags.length > 0 ? confidence : 0,
     dependencies: [],
     managed: false,
     protected: false,
@@ -24,10 +37,11 @@ function node(id: string, tags: string[], confidence = 0.95): CapabilityNode {
 }
 
 const inventory: InventorySnapshot = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   id: 'inv_test',
   capturedAt: new Date().toISOString(),
   claude: minimalFixture().environment,
+  baselineStateHash: 'baseline_test',
   plugins: [
     { canonicalId: 'frontend-design@x', name: 'frontend-design', sourceType: 'marketplace', enabled: true },
     { canonicalId: 'generic-helper@x', name: 'generic-helper', sourceType: 'marketplace', enabled: true },
@@ -41,22 +55,22 @@ const inventory: InventorySnapshot = {
 };
 
 const graph: CapabilityGraph = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   inventoryFingerprint: inventory.id,
   generatedAt: new Date().toISOString(),
   nodes: [
     node('plugin:frontend-design@x', ['domain:frontend']),
     node('plugin:generic-helper@x', [], 0.5),
     node('plugin:security-tools@x', ['domain:security']),
-    node('plugin:crypto-lib@x', [])
+    node('plugin:crypto-lib@x', ['domain:frontend-ui'])
   ],
   edges: [{ type: 'depends_on', from: 'plugin:security-tools@x', to: 'plugin:crypto-lib@x', confidence: 1, provenance: 'test' }],
-  buildAlgorithmVersion: 'graph-1',
-  sourceHashes: {}
+  buildAlgorithmVersion: GRAPH_ALGORITHM_VERSION,
+  sourceHashes: { inventory: inventory.id, repo: 'repo_test' }
 };
 
 const repo: RepoFingerprint = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   id: 'repo_test',
   rootHash: 'r',
   git: { isRepo: true, branch: 'main', dirty: false },
@@ -150,6 +164,20 @@ describe('DefaultProfileCompiler (safe mode)', () => {
     const profile = new DefaultProfileCompiler().compile(baseInput({ config: cfg }));
     expect(profile.selected.enabledPluginIds).toContain('frontend-design@x');
   });
+
+  it.each([
+    ['partial inventory', { inventory: { ...inventory, partial: true } }],
+    ['partial repository', { repo: { ...repo, partial: true } }],
+    ['stale graph inventory', { graph: { ...graph, inventoryFingerprint: 'old' } }],
+    ['incompatible graph algorithm', { graph: { ...graph, buildAlgorithmVersion: 'graph-old' } }],
+    ['unsupported Claude environment', { environment: { ...minimalFixture().environment, found: false } }]
+  ])('falls back to a zero-delta native profile for %s', (_name, overrides) => {
+    const profile = new DefaultProfileCompiler().compile(baseInput(overrides));
+    expect(profile.mode).toBe('native');
+    expect(profile.selected.prunedPluginIds).toEqual([]);
+    expect(profile.overlay.enabledPlugins).toEqual({});
+    expect(profile.fallbackReasons.length).toBeGreaterThan(0);
+  });
 });
 
 describe('DefaultProfileCompiler (aggressive mode, non-inferiority evidence)', () => {
@@ -159,7 +187,9 @@ describe('DefaultProfileCompiler (aggressive mode, non-inferiority evidence)', (
   // 0.08 is already pruned as structurally irrelevant regardless of evidence.
   const weakAffinityNode: CapabilityNode = {
     ...node('plugin:redundant-tool@x', []),
-    tags: [{ id: 'domain:backend-api', confidence: 0.3, source: 'metadata' }]
+    tags: [{ id: 'domain:backend-api', confidence: 0.3, source: 'metadata' }],
+    semanticCoverage: 1,
+    semanticClassificationConfidence: 0.85
   };
   const inv: InventorySnapshot = {
     ...inventory,
@@ -172,7 +202,7 @@ describe('DefaultProfileCompiler (aggressive mode, non-inferiority evidence)', (
     expect(profile.selected.enabledPluginIds).toContain('redundant-tool@x');
   });
 
-  it('prunes it in aggressive mode when active non-inferiority evidence names it', () => {
+  it('does not let legacy evidence authorize aggressive pruning', () => {
     const evidence = {
       records: [
         {
@@ -193,14 +223,59 @@ describe('DefaultProfileCompiler (aggressive mode, non-inferiority evidence)', (
       ]
     };
     const profile = new DefaultProfileCompiler().compile(baseInput({ inventory: inv, graph: g, mode: 'aggressive', evidence }));
-    expect(profile.selected.prunedPluginIds).toContain('redundant-tool@x');
-    const d = profile.decisions.find((x) => x.subjectId === 'redundant-tool@x');
-    expect(d?.reasonCodes).toContain('PRUNE_NONINFERIOR_REDUNDANT');
+    expect(profile.selected.enabledPluginIds).toContain('redundant-tool@x');
   });
 
   it('does not prune it in aggressive mode when no matching evidence exists', () => {
     const profile = new DefaultProfileCompiler().compile(baseInput({ inventory: inv, graph: g, mode: 'aggressive' }));
     expect(profile.selected.enabledPluginIds).toContain('redundant-tool@x');
+  });
+
+  it('fails closed without throwing when persisted v2 evidence is malformed', () => {
+    const malformed = { schemaVersion: 2, id: 'evidence_bad', applicability: { capabilityIds: 'not-an-array' } } as unknown as EvidenceRecord;
+    const input = baseInput({ inventory: inv, graph: g, mode: 'aggressive', evidence: { records: [malformed] } });
+    expect(() => new DefaultProfileCompiler().compile(input)).not.toThrow();
+    expect(new DefaultProfileCompiler().compile(input).selected.enabledPluginIds).toContain('redundant-tool@x');
+  });
+
+  it('prunes only when v2 evidence authorizes the exact candidate semantics', () => {
+    const input = baseInput({ inventory: inv, graph: g, mode: 'aggressive', taskFamilies: ['utility-edit'], model: 'default' });
+    const withoutEvidence = new DefaultProfileCompiler().compile(input);
+    const kept = withoutEvidence.selected.enabledPluginIds.filter((id) => id !== 'redundant-tool@x');
+    const pruned = [...withoutEvidence.selected.prunedPluginIds, 'redundant-tool@x'];
+    const identity = profileSemanticIdentity(input, kept, pruned);
+    const record: EvidenceRecord = {
+      schemaVersion: EVIDENCE_SCHEMA_VERSION,
+      id: 'evidence_exact',
+      suiteId: 'unrelated-free-form-name',
+      taskFamily: ['utility-edit'],
+      claudeVersionFamily: input.environment.versionFamily,
+      model: 'default',
+      baselineProfileHash: 'native',
+      candidateProfileHash: identity.id,
+      trials: 3,
+      quality: { baselineSuccess: 1, candidateSuccess: 1, difference: 0, lowerBound: 0, tolerance: 0, nonInferior: true, deterministicRegression: false },
+      cost: {},
+      createdAt: '2026-08-27T00:00:00.000Z',
+      status: 'active',
+      applicability: {
+        capabilityIds: ['redundant-tool@x'],
+        taskFamilies: ['utility-edit'],
+        claudeVersionFamily: input.environment.versionFamily,
+        model: 'default',
+        optimizerVersion: OPTIMIZER_MODEL_VERSION,
+        graphVersion: GRAPH_ALGORITHM_VERSION,
+        classifierVersion: INTENT_CLASSIFIER_VERSION,
+        candidateProfileId: identity.id,
+        candidateSemanticsHash: identity.semanticsHash
+      },
+      statistics: { method: EVIDENCE_STATISTICS_METHOD, tolerancePolicy: 'pre-registered-exact-v1', deterministicRegression: false },
+      qualification: { grade: 'exploratory' }
+    };
+    const profile = new DefaultProfileCompiler().compile({ ...input, evidence: { records: [record] } });
+
+    expect(profile.selected.prunedPluginIds).toContain('redundant-tool@x');
+    expect(profile.quality.evidenceIds).toContain('evidence_exact');
   });
 
   it('does not promote smoke-only evidence into aggressive pruning', () => {

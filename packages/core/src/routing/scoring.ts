@@ -47,10 +47,13 @@ export function scoreCapability(node: CapabilityNode, intent: TaskIntent, repo: 
 
   const repoAffinity = node.tags.some((t) => repoTags.has(t.id)) ? Math.max(...node.tags.filter((t) => repoTags.has(t.id)).map((t) => t.confidence), 0) : 0;
 
-  const evidencePrior = evidence.records.some((r) => r.status === 'active' && r.taskFamily.some((f) => intent.operations.includes(f))) ? 0.6 : 0.3;
+  // Evidence cannot be scored safely here because routing lacks the full candidate/environment
+  // applicability context. Keep the neutral prior; authorization happens at the compiler gate.
+  const evidencePrior = 0.3;
+  void evidence;
 
   const specificity = node.type === 'plugin' ? 0.3 : 0.7;
-  const availabilityConfidence = node.metadataConfidence;
+  const availabilityConfidence = node.metadataParseConfidence;
 
   const redundancyPenalty = graph.edges.some((e) => e.type === 'redundant_with' && (e.from === node.id || e.to === node.id)) ? 0.05 : 0;
   const experimentalPenalty = node.riskFlags.includes('experimental') ? 0.1 : 0;

@@ -1,7 +1,7 @@
 # P0 Correctness Hardening Design
 
 **Date:** 2026-08-27  
-**Status:** Approved  
+**Status:** Implemented
 **Scope:** P0-1 through P0-5 correctness hardening. No new product features.
 
 ## Goal

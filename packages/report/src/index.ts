@@ -41,6 +41,9 @@ export function renderAnalyzeReport(profile: CompiledProfile): string {
     `Unknown-cost plugins: before=${c.unknownBefore} after=${c.unknownAfter}`,
     `Quality: ${profile.quality.status}`
   ];
+  if (profile.fallbackReasons.length > 0) {
+    lines.push(`Native fallback: ${profile.fallbackReasons.join('; ')}`);
+  }
   if (profile.selected.prunedPluginIds.length > 0) {
     lines.push('', 'Pruned:');
     for (const id of profile.selected.prunedPluginIds) {

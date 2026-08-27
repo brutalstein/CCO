@@ -93,7 +93,7 @@ export function validateConfig(input: unknown): ConfigValidationResult {
     if (experimental.llmRoutingTieBreaker !== undefined) merged.experimental.llmRoutingTieBreaker = Boolean(experimental.llmRoutingTieBreaker);
   }
 
-  const optimization = obj.optimization as Partial<CCOConfig['optimization']> | undefined;
+  const optimization = obj.optimization as (Partial<CCOConfig['optimization']> & { metadataConfidenceMin?: number }) | undefined;
   if (optimization) {
     if (optimization.modelOptimization !== undefined) merged.optimization.modelOptimization = Boolean(optimization.modelOptimization);
     if (optimization.safePruneAffinityMax !== undefined) {
@@ -101,10 +101,35 @@ export function validateConfig(input: unknown): ConfigValidationResult {
         errors.push('optimization.safePruneAffinityMax out of safe range [0, 1]');
       } else merged.optimization.safePruneAffinityMax = optimization.safePruneAffinityMax;
     }
-    if (optimization.metadataConfidenceMin !== undefined) {
-      if (optimization.metadataConfidenceMin < 0 || optimization.metadataConfidenceMin > 1) {
-        errors.push('optimization.metadataConfidenceMin out of safe range [0, 1]');
-      } else merged.optimization.metadataConfidenceMin = optimization.metadataConfidenceMin;
+    if (optimization.semanticCoverageMin !== undefined) {
+      if (optimization.semanticCoverageMin <= 0 || optimization.semanticCoverageMin > 1) {
+        errors.push('optimization.semanticCoverageMin out of safe range (0, 1]');
+      } else merged.optimization.semanticCoverageMin = optimization.semanticCoverageMin;
+    }
+    const semanticFloor = optimization.semanticClassificationConfidenceMin ?? optimization.metadataConfidenceMin;
+    if (semanticFloor !== undefined) {
+      if (semanticFloor < 0 || semanticFloor > 1) {
+        errors.push('optimization.semanticClassificationConfidenceMin out of safe range [0, 1]');
+      } else merged.optimization.semanticClassificationConfidenceMin = semanticFloor;
+    }
+  }
+
+  const repository = obj.repository as Record<string, unknown> | undefined;
+  if (repository) {
+    for (const key of ['maxTrackedFiles', 'maxManifestBytes', 'maxTotalParsedBytes'] as const) {
+      const value = repository[key];
+      if (value === undefined) continue;
+      if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+        errors.push(`repository.${key} must be a positive integer`);
+      } else {
+        merged.repository[key] = value;
+      }
+    }
+    // `deepScan` was a v1 no-op. Accepting and dropping it is the conservative migration.
+    for (const key of Object.keys(repository)) {
+      if (!['maxTrackedFiles', 'maxManifestBytes', 'maxTotalParsedBytes', 'deepScan'].includes(key)) {
+        errors.push(`unknown repository config key: ${key}`);
+      }
     }
   }
 

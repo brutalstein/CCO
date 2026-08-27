@@ -27,6 +27,11 @@ describe('parsePluginListJson', () => {
     const out = parsePluginListJson(JSON.stringify([{ id: 'a@x', enabled: true, installPath: '/plugins/a' }]));
     expect(out[0].installPath).toBe('/plugins/a');
   });
+
+  it('retains scope and update state used by inventory cache identity', () => {
+    const out = parsePluginListJson(JSON.stringify([{ id: 'a@x', enabled: true, scope: 'user', lastUpdated: '2026-08-27T00:00:00Z' }]));
+    expect(out[0]).toMatchObject({ scope: 'user', lastUpdated: '2026-08-27T00:00:00Z' });
+  });
 });
 
 describe('parsePluginDetailsJson', () => {

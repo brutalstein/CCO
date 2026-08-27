@@ -13,10 +13,11 @@ import { minimalFixture } from '@cco/claude-adapter';
 describe('repo-affinity via auto-extracted tags', () => {
   it('B06: builds byte-equivalent graphs regardless of inventory ordering', () => {
     const inventory: InventorySnapshot = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: 'inv_deterministic',
       capturedAt: '2026-01-01T00:00:00.000Z',
       claude: minimalFixture().environment,
+      baselineStateHash: 'baseline_deterministic',
       plugins: [
         { canonicalId: 'zeta@x', name: 'zeta', sourceType: 'marketplace', enabled: true },
         { canonicalId: 'alpha@x', name: 'alpha', sourceType: 'marketplace', enabled: true }
@@ -32,10 +33,11 @@ describe('repo-affinity via auto-extracted tags', () => {
 
   it('keeps a plugin whose auto-extracted domain tag matches the repo fingerprint domain', () => {
     const inventory: InventorySnapshot = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: 'inv_affinity',
       capturedAt: new Date().toISOString(),
       claude: minimalFixture().environment,
+      baselineStateHash: 'baseline_affinity',
       plugins: [
         { canonicalId: 'frontend-kit@x', name: 'frontend-kit', sourceType: 'marketplace', enabled: true },
         { canonicalId: 'security-tools@x', name: 'security-tools', sourceType: 'marketplace', enabled: true }
@@ -63,7 +65,7 @@ describe('repo-affinity via auto-extracted tags', () => {
     };
 
     const repo: RepoFingerprint = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: 'repo_affinity',
       rootHash: 'r',
       git: { isRepo: true, branch: 'main', dirty: false },

@@ -126,8 +126,10 @@ function encodeHookContext(event, text) {
 }
 
 // packages/core/dist/types.js
-var SCHEMA_VERSION = 1;
+var SCHEMA_VERSION = 2;
 var CCO_VERSION = "1.0.0";
+var OPTIMIZER_MODEL_VERSION = "optimizer-2";
+var GRAPH_ALGORITHM_VERSION = "graph-2";
 var INTENT_CLASSIFIER_VERSION = "intent-1";
 
 // packages/core/dist/config/defaults.js
@@ -146,7 +148,8 @@ function defaultConfig() {
     },
     optimization: {
       safePruneAffinityMax: 0.08,
-      metadataConfidenceMin: 0.8,
+      semanticCoverageMin: 0.5,
+      semanticClassificationConfidenceMin: 0.8,
       quality: {
         mode: "non-inferiority",
         defaultTolerance: 0,
@@ -156,7 +159,7 @@ function defaultConfig() {
       modelOptimization: false,
       preferStableProfile: true
     },
-    repository: { maxTrackedFiles: 5e4, maxManifestBytes: 262144, maxTotalParsedBytes: 4194304, deepScan: false },
+    repository: { maxTrackedFiles: 5e4, maxManifestBytes: 262144, maxTotalParsedBytes: 4194304 },
     privacy: {
       storeRawPrompts: false,
       storeTranscriptContent: false,
@@ -265,11 +268,36 @@ function validateConfig(input) {
       } else
         merged.optimization.safePruneAffinityMax = optimization.safePruneAffinityMax;
     }
-    if (optimization.metadataConfidenceMin !== void 0) {
-      if (optimization.metadataConfidenceMin < 0 || optimization.metadataConfidenceMin > 1) {
-        errors.push("optimization.metadataConfidenceMin out of safe range [0, 1]");
+    if (optimization.semanticCoverageMin !== void 0) {
+      if (optimization.semanticCoverageMin <= 0 || optimization.semanticCoverageMin > 1) {
+        errors.push("optimization.semanticCoverageMin out of safe range (0, 1]");
       } else
-        merged.optimization.metadataConfidenceMin = optimization.metadataConfidenceMin;
+        merged.optimization.semanticCoverageMin = optimization.semanticCoverageMin;
+    }
+    const semanticFloor = optimization.semanticClassificationConfidenceMin ?? optimization.metadataConfidenceMin;
+    if (semanticFloor !== void 0) {
+      if (semanticFloor < 0 || semanticFloor > 1) {
+        errors.push("optimization.semanticClassificationConfidenceMin out of safe range [0, 1]");
+      } else
+        merged.optimization.semanticClassificationConfidenceMin = semanticFloor;
+    }
+  }
+  const repository = obj.repository;
+  if (repository) {
+    for (const key of ["maxTrackedFiles", "maxManifestBytes", "maxTotalParsedBytes"]) {
+      const value = repository[key];
+      if (value === void 0)
+        continue;
+      if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+        errors.push(`repository.${key} must be a positive integer`);
+      } else {
+        merged.repository[key] = value;
+      }
+    }
+    for (const key of Object.keys(repository)) {
+      if (!["maxTrackedFiles", "maxManifestBytes", "maxTotalParsedBytes", "deepScan"].includes(key)) {
+        errors.push(`unknown repository config key: ${key}`);
+      }
     }
   }
   return { ok: errors.length === 0, config: merged, errors };
@@ -325,6 +353,9 @@ function validateProfileIntegrity(profile, runtimeVersion = CCO_VERSION) {
   if (!profile.ccoVersion || major(profile.ccoVersion) !== major(runtimeVersion)) {
     issues.push({ code: "CCO_VERSION_MISMATCH", message: "CLI/plugin major versions do not match" });
   }
+  if (profile.algorithmVersions?.optimizer !== OPTIMIZER_MODEL_VERSION || profile.algorithmVersions?.graph !== GRAPH_ALGORITHM_VERSION || profile.algorithmVersions?.classifier !== INTENT_CLASSIFIER_VERSION) {
+    issues.push({ code: "PROFILE_ALGORITHM_MISMATCH", message: "profile algorithm versions are incompatible with this runtime" });
+  }
   if (profile.integrityHash !== profileIntegrityHash(profile)) {
     issues.push({ code: "PROFILE_INTEGRITY", message: "profile integrity hash is invalid" });
   }
@@ -336,7 +367,7 @@ function validateHookArtifacts(profile, graph, runtimeVersion = CCO_VERSION) {
     issues.push({ code: "GRAPH_MISSING", message: "profile graph is missing" });
     return issues;
   }
-  if (graph.schemaVersion !== SCHEMA_VERSION || graph.inventoryFingerprint !== profile.inventoryId || graph.sourceHashes.repo !== profile.repoFingerprintId) {
+  if (graph.schemaVersion !== SCHEMA_VERSION || graph.buildAlgorithmVersion !== GRAPH_ALGORITHM_VERSION || graph.inventoryFingerprint !== profile.inventoryId || graph.sourceHashes.repo !== profile.repoFingerprintId) {
     issues.push({ code: "GRAPH_STALE", message: "profile and capability graph fingerprints do not match" });
   }
   const graphIds = new Set(graph.nodes.map((node) => node.id));
@@ -475,7 +506,7 @@ var DICTIONARY = [
   // 'design' deliberately excluded: too generic ("design a database schema", "design an API")
   // to be a reliable frontend-only signal even with whole-word matching.
   { tag: "domain:frontend-ui", keywords: ["frontend", "ui", "css", "component"] },
-  { tag: "domain:backend-api", keywords: ["backend", "api", "server", "express", "fastify", "rest api"] },
+  { tag: "domain:backend-api", keywords: ["backend", "api", "express", "fastify", "rest api"] },
   { tag: "domain:mobile", keywords: ["ios", "android", "mobile", "swift", "kotlin"] },
   { tag: "domain:infrastructure", keywords: ["kubernetes", "docker", "terraform", "deploy", "ci/cd", "infrastructure"] },
   { tag: "operation:code-review", keywords: ["review", "code review"] },
@@ -590,9 +621,10 @@ function scoreCapability(node, intent, repo, evidence, graph) {
   const tagHits = node.tags.filter((t) => taskTags.has(t.id));
   const coverage = taskTags.size > 0 ? tagHits.length / taskTags.size : 0;
   const repoAffinity = node.tags.some((t) => repoTags.has(t.id)) ? Math.max(...node.tags.filter((t) => repoTags.has(t.id)).map((t) => t.confidence), 0) : 0;
-  const evidencePrior = evidence.records.some((r) => r.status === "active" && r.taskFamily.some((f) => intent.operations.includes(f))) ? 0.6 : 0.3;
+  const evidencePrior = 0.3;
+  void evidence;
   const specificity = node.type === "plugin" ? 0.3 : 0.7;
-  const availabilityConfidence = node.metadataConfidence;
+  const availabilityConfidence = node.metadataParseConfidence;
   const redundancyPenalty = graph.edges.some((e) => e.type === "redundant_with" && (e.from === node.id || e.to === node.id)) ? 0.05 : 0;
   const experimentalPenalty = node.riskFlags.includes("experimental") ? 0.1 : 0;
   const score = 0.35 * lexicalMatch + 0.2 * coverage + 0.15 * repoAffinity + 0.15 * evidencePrior + 0.1 * specificity + 0.05 * availabilityConfidence - redundancyPenalty - experimentalPenalty;

@@ -8,14 +8,12 @@ export interface RepoScanOptions {
   maxTrackedFiles: number;
   maxManifestBytes: number;
   maxTotalParsedBytes: number;
-  deepScan: boolean;
 }
 
 export const DEFAULT_REPO_SCAN_OPTIONS: RepoScanOptions = {
   maxTrackedFiles: 50000,
   maxManifestBytes: 262144,
-  maxTotalParsedBytes: 4194304,
-  deepScan: false
+  maxTotalParsedBytes: 4194304
 };
 
 const IGNORE_DIRS = new Set([
@@ -53,9 +51,9 @@ export class DefaultRepoAnalyzer implements RepoAnalyzer {
     const languages = languagesFromExtensions(files);
     const manifestFiles = files.filter((f) => KNOWN_MANIFESTS.some((m) => matchManifest(f, m)));
     const inspected = await this.inspectManifests(root, manifestFiles, options);
-    if (inspected.parsedBytes >= options.maxTotalParsedBytes) partial = true;
+    partial ||= inspected.partial;
 
-    const inputsHash = canonicalHash({ files: files.slice().sort(), manifestFiles: manifestFiles.slice().sort() });
+    const inputsHash = canonicalHash({ files: files.slice().sort(), manifests: inspected.digests });
 
     return {
       schemaVersion: SCHEMA_VERSION,
@@ -121,30 +119,44 @@ export class DefaultRepoAnalyzer implements RepoAnalyzer {
     root: string,
     manifestFiles: string[],
     options: RepoScanOptions
-  ): Promise<{ frameworks: string[]; domains: string[]; workspaceKind: 'single-package' | 'monorepo'; parsedBytes: number }> {
+  ): Promise<{ frameworks: string[]; domains: string[]; workspaceKind: 'single-package' | 'monorepo'; parsedBytes: number; digests: Array<{ path: string; digest: string }>; partial: boolean }> {
     const frameworks = new Set<string>();
     const domains = new Set<string>();
     let parsedBytes = 0;
     let packageJsonCount = 0;
+    let partial = false;
+    const digests: Array<{ path: string; digest: string }> = [];
+    const resolvedRoot = path.resolve(root);
 
     for (const rel of manifestFiles) {
-      if (parsedBytes >= options.maxTotalParsedBytes) break;
-      const full = path.join(root, rel);
+      if (parsedBytes >= options.maxTotalParsedBytes) { partial = true; break; }
+      const full = path.resolve(root, rel);
+      const relative = path.relative(resolvedRoot, full);
+      if (relative.startsWith('..') || path.isAbsolute(relative)) { partial = true; continue; }
       let stat;
       try {
-        stat = await fs.stat(full);
+        stat = await fs.lstat(full);
       } catch {
+        partial = true;
         continue;
       }
-      if (stat.size > options.maxManifestBytes) continue;
+      if (stat.isSymbolicLink() || !stat.isFile()) { partial = true; continue; }
+      if (stat.size > options.maxManifestBytes || parsedBytes + stat.size > options.maxTotalParsedBytes) { partial = true; continue; }
       const base = path.basename(rel);
+      let raw: string;
+      try {
+        raw = await fs.readFile(full, 'utf8');
+      } catch {
+        partial = true;
+        continue;
+      }
+      parsedBytes += Buffer.byteLength(raw);
 
       if (base === 'package.json') {
         packageJsonCount += 1;
         try {
-          const raw = await fs.readFile(full, 'utf8');
-          parsedBytes += raw.length;
           const json = JSON.parse(raw) as Record<string, unknown>;
+          digests.push({ path: rel, digest: canonicalHash(json) });
           const deps = { ...(json.dependencies as object), ...(json.devDependencies as object) } as Record<string, unknown>;
           if (json.workspaces) frameworks.add('npm-workspaces');
           if ('react' in deps) { frameworks.add('react'); domains.add('frontend-ui'); }
@@ -152,9 +164,14 @@ export class DefaultRepoAnalyzer implements RepoAnalyzer {
           if ('next' in deps) { frameworks.add('nextjs'); domains.add('frontend-ui'); }
           if ('express' in deps || 'fastify' in deps) domains.add('backend-api');
         } catch {
-          // malformed manifest: ignore, do not crash fingerprinting
+          digests.push({ path: rel, digest: canonicalHash(raw) });
+          partial = true;
         }
-      } else if (base === 'Cargo.toml') {
+      } else {
+        digests.push({ path: rel, digest: canonicalHash(raw) });
+      }
+
+      if (base === 'Cargo.toml') {
         frameworks.add('cargo');
         domains.add('backend-api');
       } else if (base === 'go.mod') {
@@ -178,7 +195,9 @@ export class DefaultRepoAnalyzer implements RepoAnalyzer {
       frameworks: [...frameworks].sort(),
       domains: [...domains].sort(),
       workspaceKind: packageJsonCount > 1 || frameworks.has('npm-workspaces') ? 'monorepo' : 'single-package',
-      parsedBytes
+      parsedBytes,
+      digests: digests.sort((a, b) => a.path.localeCompare(b.path)),
+      partial
     };
   }
 }
