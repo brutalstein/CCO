@@ -21,8 +21,10 @@ export async function cmdInit(parsed: ParsedArgs): Promise<number> {
   await ctx.inventoryService.loadOrRefresh({ cwd: ctx.cwd });
 
   const pluginGuidance =
-    'CCO plugin not auto-installed (no pinned marketplace source configured). ' +
-    'For development, run: claude plugin install --plugin-dir ./plugin/cco';
+    'CCO plugin not auto-installed by `cco init` (this only sets up local CLI config). ' +
+    'For per-prompt routing hints, install the companion plugin yourself: ' +
+    'claude plugin marketplace add brutalstein/cco && claude plugin install cco@cco ' +
+    '(or, working from a local checkout: claude plugin install --plugin-dir ./plugin/cco)';
 
   if (json) {
     printJson({ claudeVersion: env.version, configDir: ctx.store.paths.configDir, pluginGuidance }, 'init');

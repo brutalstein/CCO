@@ -75,7 +75,7 @@ node apps/cli/dist/main.js analyze    # dry-run: what would be kept/pruned, and 
 node apps/cli/dist/main.js run        # launch Claude with an ephemeral, optimized --settings overlay
 ```
 
-`cco init` additionally installs the small companion plugin (SessionStart/UserPromptSubmit hooks + four user-invoked diagnostic skills) so `cco run` sessions also get per-prompt routing hints — entirely optional, and additive to whatever plugins you already have.
+`cco init` checks your Claude Code install and writes local CCO config; it does **not** install the companion plugin for you. For per-prompt routing hints, install the companion plugin yourself — one command if you haven't already added the marketplace (see [Install](#install)) — which adds SessionStart/UserPromptSubmit hooks + four user-invoked diagnostic skills, additive to whatever plugins you already have.
 
 ## Real numbers, not marketing copy
 
