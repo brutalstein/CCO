@@ -190,7 +190,14 @@ See `ARCHITECTURE.md` for the fuller breakdown.
 
 ## Status
 
-Core packages build clean and include regression coverage for semantic certainty, live inventory-state invalidation, content-bound repository fingerprints, strict evidence applicability, launcher fallback, hook integrity/performance, benchmark isolation, and release safety (see `docs/CLAIMS.md`). `doctor`/`inventory`/`analyze`/`audit`/`run` have been exercised against a real Claude Code install with real installed plugins. The `brutalstein/cco` marketplace and `cco@cco` plugin install path is verified end-to-end from a live GitHub clone, and one smoke benchmark suite has been run against a live `claude` binary. The v1.0.0 release candidate is green on ubuntu-latest, windows-latest, and macos-latest ([CI run 33031523306](https://github.com/brutalstein/CCO/actions/runs/33031523306)). Registry availability is verified separately from repository qualification, and compatible multi-family public-claim-grade benchmarking remains an external evidence gate.
+Qualification snapshot for commit `7d8e5cb` (2026-08-27):
+
+- 162 tests across 26 files pass after a clean `npm ci`; lint, TypeScript build, deterministic generation of all six schemas, plugin bundling, and fixture fingerprint checks are green.
+- Release E2E packages the standalone CLI and plugin, verifies four checksummed artifacts and an SPDX SBOM containing 176 packages, then installs the CLI tarball into an isolated npm project and runs `help`, `doctor`, `inventory`, `analyze`, and `audit`.
+- Live verification against Claude Code 2.1.247 passed strict plugin-manifest validation and collected 11 enabled plugins with `partial: false`. Safe analysis retained 10 and pruned only the repository-irrelevant Rust analyzer for that session.
+- The same commit is green on ubuntu-latest, windows-latest, and macos-latest, including the schema gate ([CI run 33068683328](https://github.com/brutalstein/CCO/actions/runs/33068683328)); the isolated benchmark regression workflow also passed ([run 33068683460](https://github.com/brutalstein/CCO/actions/runs/33068683460)).
+
+Regression coverage includes semantic certainty, live inventory-state invalidation, content-bound repository fingerprints, strict evidence applicability, native fallback, hook integrity/performance, benchmark isolation, and release safety (see `docs/CLAIMS.md`). The `brutalstein/CCO` marketplace and `cco@cco` plugin install path were previously verified end-to-end from a live GitHub clone, and one smoke benchmark suite was run against a live `claude` binary. Registry availability is verified separately from repository qualification, and compatible multi-family public-claim-grade benchmarking remains an external evidence gate.
 
 ## Contributing
 
