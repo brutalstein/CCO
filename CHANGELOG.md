@@ -95,6 +95,14 @@ not by inspection:
   locally-derived, not attacker-controlled, so this was a hardening fix,
   not an exploited vulnerability.
 
+### Fixed (dependency security)
+
+- Resolved all 5 `npm audit` findings (3 moderate, 1 high, 1 critical) in
+  the esbuild/vite/vitest transitive dev-tooling chain by bumping esbuild
+  and vitest to their next major versions. Dev-tooling only, never shipped
+  in the runtime bundle, but a clean upgrade was available (0 test/lint/
+  build regressions), so fixed rather than left as an accepted gap.
+
 ### Added (release qualification evidence)
 
 - `packages/core/test/router-corpus.test.ts`: a labeled router qualification
@@ -176,9 +184,6 @@ not by inspection:
   optimizer.ts`, `packages/core/src/planning/planner.ts`) remain unit-tested
   library code with no live caller — no claim is made that CCO's shipped
   commands use Pareto/lexicographic execution-plan selection today.
-- `npm audit` reports 5 pre-existing vulnerabilities (3 moderate, 1 high, 1
-  critical) in the esbuild/vite/vitest transitive dev-tooling chain —
-  build/test tooling only, not shipped runtime code.
 - The full `33_ACCEPTANCE_TEST_MATRIX.md` is not yet exhaustively mapped to
   automated tests; unit coverage exists for the profile compiler (including
   the section-9 fixture matrix), router (including the section-8

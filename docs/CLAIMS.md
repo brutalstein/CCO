@@ -30,4 +30,5 @@ it in further marketing copy.
   any task family yet — see `BENCHMARKS.md`'s smoke/exploratory/
   public-claim-grade categorization.
 - No third-party security audit of the dependency tree beyond `npm audit`
-  (5 pre-existing dev-tooling vulnerabilities, tracked in `CHANGELOG.md`).
+  (currently 0 findings; see `CHANGELOG.md` for the esbuild/vitest major-
+  version bump that resolved the prior 5).
