@@ -111,6 +111,42 @@ not by inspection:
   partial-metadata), each reporting baseline cost by provenance, selected/
   pruned/uncertain capabilities, and reason codes.
 
+### Fixed (second whole-project audit pass)
+
+- `claude plugin details` real CLI output includes a `Description:` line, but
+  the parser chain (`parsePluginDetailsText`/`parsePluginDetailsJson`)
+  discarded it entirely, so `graph/builder.ts` tagged every plugin from its
+  bare name alone (`extractTags(plugin.name, plugin.name, ...)`). Generically
+  named plugins like `clangd-lsp` got zero tags. Plumbed `description` through
+  `PluginDetailsSource` -> `InventorySnapshot.pluginDetails` -> tag
+  extraction. Verified against a live install: `clangd-lsp`'s real
+  description now yields a tag where it previously yielded none.
+- `optimization.safePruneAffinityMax`/`metadataConfidenceMin`
+  (`packages/core/src/config/validate.ts`) gate `DefaultProfileCompiler`'s
+  prune-safety decision directly but were accepted unbounded from user
+  config, unlike every other safety-relevant numeric field. Added `[0, 1]`
+  range validation.
+- README claimed `cco init` "installs the small companion plugin"; the real
+  `cmdInit` (`apps/cli/src/commands/init.ts`) only probes the Claude install
+  and writes local CCO config — it never calls plugin install. Corrected the
+  README claim and `cco init`'s own guidance text (which pointed only at a
+  dev-only `--plugin-dir` flow) to reference the real public two-command
+  install path. Verified `cco init` is idempotent against a live install
+  (byte-identical output across two runs).
+- **CLI package was not actually installable outside the monorepo.**
+  `apps/cli/package.json` declared `@cco/core`/`@cco/claude-adapter`/
+  `@cco/platform`/`@cco/report`/`@cco/benchmark` as ordinary npm dependencies;
+  none are published, so `npm install` of the `npm pack` tarball in a real
+  isolated environment failed immediately with an npm `404`. This directly
+  contradicted the "CLI package installs and runs cleanly" claim in
+  `docs/CLAIMS.md`, which had evidently never been verified via a truly
+  isolated install. Fixed by bundling the CLI into a single self-contained
+  `dist/bundle.js` with esbuild (`scripts/build-cli.mjs`), same technique
+  already used for the plugin hook bundle. Re-verified end-to-end: fresh
+  `npm pack` -> isolated `npm install` -> real `cco --help/doctor/inventory/
+  analyze` via the actual Windows npm shim, against a live Claude Code
+  install.
+
 ### Known gaps in this initial cut
 
 - npm/marketplace publication has not been run. One benchmark suite
