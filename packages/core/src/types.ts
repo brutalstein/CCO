@@ -91,7 +91,7 @@ export interface InventorySnapshot {
   capturedAt: string;
   claude: ClaudeEnvironment;
   plugins: PluginInventorySource[];
-  pluginDetails: Record<string, { alwaysOnTokens?: number; source: string; dependencies: string[]; riskFlags: string[]; components: { type: string; id: string; name: string }[] }>;
+  pluginDetails: Record<string, { alwaysOnTokens?: number; source: string; description?: string; dependencies: string[]; riskFlags: string[]; components: { type: string; id: string; name: string }[] }>;
   partial: boolean;
   missingSources: string[];
 }

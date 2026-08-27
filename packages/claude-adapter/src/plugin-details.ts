@@ -33,6 +33,7 @@ export function parsePluginDetailsJson(canonicalId: string, raw: string): Plugin
 
   return {
     canonicalId,
+    description: typeof d.description === 'string' ? d.description : undefined,
     components,
     alwaysOnTokens: alwaysOn,
     tokenSource: alwaysOn !== undefined ? 'anthropic_projected' : 'unknown',
@@ -49,6 +50,7 @@ const SECTION_LABELS: Record<string, string> = {
   'LSP servers': 'lsp_server'
 };
 const SECTION_RE = /^\s*(Skills|Agents|Hooks|MCP servers|LSP servers)\s*\((\d+)\)(?:\s+(.*))?$/;
+const DESCRIPTION_RE = /^\s*Description:\s*(.+)$/;
 // The number may be locale-grouped ("~1.420 tok" meaning 1420, not 1.42) — strip
 // grouping punctuation before parsing rather than assuming a plain integer.
 const ALWAYS_ON_RE = /Always-on:\s*~?([\d.,]+)\s*tok/;
@@ -68,8 +70,14 @@ export function parsePluginDetailsText(canonicalId: string, raw: string): Plugin
 
   const components: PluginDetailComponent[] = [];
   let alwaysOnTokens: number | undefined;
+  let description: string | undefined;
 
   for (const line of raw.split(/\r?\n/)) {
+    const desc = DESCRIPTION_RE.exec(line);
+    if (desc) {
+      description = desc[1].trim();
+      continue;
+    }
     const section = SECTION_RE.exec(line);
     if (section) {
       const [, label, countStr, namesRaw] = section;
@@ -92,6 +100,7 @@ export function parsePluginDetailsText(canonicalId: string, raw: string): Plugin
 
   return {
     canonicalId,
+    description,
     components,
     alwaysOnTokens,
     tokenSource: alwaysOnTokens !== undefined ? 'anthropic_projected' : 'unknown',

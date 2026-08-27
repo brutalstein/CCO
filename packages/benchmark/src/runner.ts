@@ -2,7 +2,7 @@ import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import crypto from 'node:crypto';
 import type { ClaudeAdapter, ClaudeEnvironment } from '@cco/claude-adapter';
-import { parseJsonOutput, parseStreamJsonLines } from '@cco/claude-adapter';
+import { parseStreamJsonLines } from '@cco/claude-adapter';
 import type { ProcessLauncher } from '@cco/platform';
 import { createIsolatedCopy, cleanupIsolatedCopy } from './isolation.js';
 import { evaluateNonInferiority } from './stats.js';
@@ -101,7 +101,8 @@ export class DefaultBenchmarkRunner implements BenchmarkRunner {
         return { arm: arm.label, trialIndex, success: false, deterministicFailures: [], wallMs: Date.now() - start, usage: {}, infrastructureFailure: true, rawArtifactPath: null };
       }
 
-      const summary = suite.claude ? parseStreamJsonLines(result.stdout) : parseJsonOutput(result.stdout);
+      // benchmarkInvocation() above always requests outputFormat: 'stream-json'.
+      const summary = parseStreamJsonLines(result.stdout);
       const failures = await this.runChecks(suite, workDir);
 
       return {

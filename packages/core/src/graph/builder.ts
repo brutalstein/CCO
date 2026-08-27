@@ -30,7 +30,7 @@ export class DefaultCapabilityGraphBuilder implements CapabilityGraphBuilder {
     for (const plugin of inventory.plugins) {
       const pluginId = `plugin:${plugin.canonicalId}`;
       const details = inventory.pluginDetails[plugin.canonicalId];
-      const tags = extractTags(plugin.name, plugin.name, 'metadata');
+      const tags = extractTags(plugin.name, details?.description ?? plugin.name, 'metadata');
       const affinity = repo ? repoAffinityBoost(tags, repo) : 0;
 
       nodes.push({

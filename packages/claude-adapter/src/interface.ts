@@ -51,6 +51,9 @@ export interface PluginDetailComponent {
 
 export interface PluginDetailsSource {
   canonicalId: string;
+  /** Free-text description from `claude plugin details` — the primary signal for tagging a
+   *  generically-named plugin (05_CAPABILITY_MODEL.md section 7). */
+  description?: string;
   components: PluginDetailComponent[];
   alwaysOnTokens?: number;
   tokenSource: 'anthropic_projected' | 'unknown';

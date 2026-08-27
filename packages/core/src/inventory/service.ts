@@ -70,6 +70,7 @@ export class DefaultInventoryService implements InventoryService {
           pluginDetails[id] = {
             alwaysOnTokens: detail.alwaysOnTokens,
             source: detail.tokenSource,
+            description: detail.description,
             dependencies: detail.dependencies,
             riskFlags: detail.riskFlags,
             components: detail.components
