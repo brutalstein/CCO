@@ -69,13 +69,14 @@ export async function runHook(parsed: ParsedArgs): Promise<number> {
 
     const claudeVersion = null;
     const projectId = projectIdFromRoot(hookInput.cwd);
+    const evidence = { records: await store.listEvidence() };
 
     if (event === 'SessionStart') {
       const digest = sessionStartDigest({
         profile,
         graph,
         config,
-        evidence: { records: [] },
+        evidence,
         agentTeamsEnabled: config.experimental.agentTeams
       });
       await store.appendEvent(
@@ -89,7 +90,7 @@ export async function runHook(parsed: ParsedArgs): Promise<number> {
       if (!graph || !config.routing.enabled) return 0;
       const prompt = hookInput.prompt ?? '';
       const { hintText, reasonCode } = userPromptSubmitRoute(
-        { profile, graph, config, evidence: { records: [] }, agentTeamsEnabled: config.experimental.agentTeams },
+        { profile, graph, config, evidence, agentTeamsEnabled: config.experimental.agentTeams },
         prompt,
         hookInput.cwd,
         hookInput.sessionId

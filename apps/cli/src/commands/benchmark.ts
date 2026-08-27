@@ -40,7 +40,8 @@ async function runSubcommand(parsed: ParsedArgs): Promise<number> {
   const inventory = await ctx.inventoryService.loadOrRefresh({ cwd: ctx.cwd });
   const repo = await ctx.repoAnalyzer.fingerprint(ctx.cwd);
   const graph = new DefaultCapabilityGraphBuilder().build(inventory, repo);
-  const candidateProfile = new DefaultProfileCompiler().compile({ inventory, graph, repo, config, evidence: { records: [] }, environment: env, mode: candidateMode });
+  const evidence = { records: await ctx.store.listEvidence() };
+  const candidateProfile = new DefaultProfileCompiler().compile({ inventory, graph, repo, config, evidence, environment: env, mode: candidateMode });
 
   // Same safety oracle `cco run` enforces before ever launching a real Claude process
   // with an overlay (apps/cli/src/process-launch.ts) — a benchmark trial is still a real

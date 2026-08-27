@@ -25,7 +25,8 @@ export async function cmdAnalyze(parsed: ParsedArgs): Promise<number> {
   const intentText = flagString(parsed.flags, 'intent');
   const intent = intentText ? new DefaultIntentClassifier().classify({ prompt: intentText, repo }) : undefined;
 
-  const profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence: { records: [] }, environment: env, mode });
+  const evidence = { records: await ctx.store.listEvidence() };
+  const profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence, environment: env, mode });
 
   if (json) {
     printJson(profile, 'analyze');

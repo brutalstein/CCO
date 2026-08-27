@@ -55,10 +55,11 @@ export async function runLaunch(ctx: CliContext, options: LaunchOptions): Promis
   const repo = await ctx.repoAnalyzer.fingerprint(ctx.cwd);
   const graph: CapabilityGraph = new DefaultCapabilityGraphBuilder().build(inventory, repo);
   const intent = options.intentPrompt ? makeIntent(options.intentPrompt) : undefined;
+  const evidence = { records: await ctx.store.listEvidence() };
 
   let mode = options.mode;
   let reasons: string[] = [];
-  let profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence: { records: [] }, environment: env, mode });
+  let profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence, environment: env, mode });
 
   const validator = new DefaultSafetyValidator();
   const profileIssues = validator.validateProfile(profile, inventory);
@@ -68,7 +69,7 @@ export async function runLaunch(ctx: CliContext, options: LaunchOptions): Promis
     }
     reasons = profileIssues.map((i) => 'fallback: ' + i.message);
     mode = 'native';
-    profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence: { records: [] }, environment: env, mode });
+    profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence, environment: env, mode });
   }
 
   const overlay = await ctx.adapter.buildSettingsOverlay({ enabledPluginDelta: profile.overlay.enabledPlugins, env: {} }, null);
@@ -79,7 +80,7 @@ export async function runLaunch(ctx: CliContext, options: LaunchOptions): Promis
     }
     reasons = [...reasons, ...overlayIssues.map((i) => 'fallback: ' + i.message)];
     mode = 'native';
-    profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence: { records: [] }, environment: env, mode: 'native' });
+    profile = new DefaultProfileCompiler().compile({ inventory, graph, repo, intent, config, evidence, environment: env, mode: 'native' });
   }
 
   const forcedFallback = reasons.length > 0;

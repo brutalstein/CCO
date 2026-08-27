@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs';
 import { resolvePlatformPaths, atomicWriteJson, readJsonIfExists, appendJsonl, ensureDir, canonicalHash, type PlatformPaths } from '@cco/platform';
 import { validateConfig } from '../config/validate.js';
 import { defaultConfig } from '../config/defaults.js';
-import type { CCOConfig, TelemetryEvent } from '../types.js';
+import type { CCOConfig, EvidenceRecord, TelemetryEvent } from '../types.js';
 
 export type SnapshotKind = 'inventory' | 'graph' | 'profile' | 'evidence';
 
@@ -30,6 +30,7 @@ export interface StateStore {
   writeConfig(config: CCOConfig): Promise<void>;
   getSnapshot<T>(kind: SnapshotKind, id: string): Promise<T | null>;
   putSnapshot<T extends { id: string }>(kind: SnapshotKind, value: T): Promise<string>;
+  listEvidence(): Promise<EvidenceRecord[]>;
   appendEvent(event: TelemetryEvent): Promise<void>;
   cleanup(policy: RetentionPolicy): Promise<CleanupReport>;
   paths: PlatformPaths;
@@ -79,6 +80,23 @@ export class JsonStateStore implements StateStore {
     const dir = this.paths[KIND_DIR[kind]];
     await atomicWriteJson(path.join(dir, `${value.id}.json`), value);
     return value.id;
+  }
+
+  /**
+   * All persisted evidence records (06_SESSION_PROFILE_COMPILER.md aggressive-mode gate,
+   * 09_QUALITY_MODEL_AND_EVALS.md). `evidenceDir` also holds per-suite subdirectories of raw
+   * `BenchmarkRun` JSON (apps/cli benchmark command) — only top-level files are records.
+   */
+  async listEvidence(): Promise<EvidenceRecord[]> {
+    const dir = this.paths.evidenceDir;
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+    const records: EvidenceRecord[] = [];
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+      const record = await readJsonIfExists<EvidenceRecord>(path.join(dir, entry.name));
+      if (record) records.push(record);
+    }
+    return records;
   }
 
   async appendEvent(event: TelemetryEvent): Promise<void> {

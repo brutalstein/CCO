@@ -151,3 +151,55 @@ describe('DefaultProfileCompiler (safe mode)', () => {
     expect(profile.selected.enabledPluginIds).toContain('frontend-design@x');
   });
 });
+
+describe('DefaultProfileCompiler (aggressive mode, non-inferiority evidence)', () => {
+  // Weak-but-nonzero repo affinity (above safePruneAffinityMax=0.08, below the
+  // hasStrongRelevance floor of 0.5) is the only zone where evidence-based pruning
+  // can fire at all — everything above 0.5 is kept outright, everything at/below
+  // 0.08 is already pruned as structurally irrelevant regardless of evidence.
+  const weakAffinityNode: CapabilityNode = {
+    ...node('plugin:redundant-tool@x', []),
+    tags: [{ id: 'domain:backend-api', confidence: 0.3, source: 'metadata' }]
+  };
+  const inv: InventorySnapshot = {
+    ...inventory,
+    plugins: [...inventory.plugins, { canonicalId: 'redundant-tool@x', name: 'redundant-tool', sourceType: 'marketplace', enabled: true }]
+  };
+  const g: CapabilityGraph = { ...graph, nodes: [...graph.nodes, weakAffinityNode] };
+
+  it('keeps the weak-affinity plugin in safe mode (no evidence consulted)', () => {
+    const profile = new DefaultProfileCompiler().compile(baseInput({ inventory: inv, graph: g, mode: 'safe' }));
+    expect(profile.selected.enabledPluginIds).toContain('redundant-tool@x');
+  });
+
+  it('prunes it in aggressive mode when active non-inferiority evidence names it', () => {
+    const evidence = {
+      records: [
+        {
+          schemaVersion: 1,
+          id: 'evidence_1',
+          suiteId: 'redundant-tool@x-suite',
+          taskFamily: ['utility-edit'],
+          claudeVersionFamily: '2.1-current',
+          model: 'default',
+          baselineProfileHash: 'native',
+          candidateProfileHash: 'profile_x',
+          trials: 10,
+          quality: { baselineSuccess: 1, candidateSuccess: 1, difference: 0, lowerBound: -0.01, tolerance: 0, nonInferior: true },
+          cost: {},
+          createdAt: new Date().toISOString(),
+          status: 'active' as const
+        }
+      ]
+    };
+    const profile = new DefaultProfileCompiler().compile(baseInput({ inventory: inv, graph: g, mode: 'aggressive', evidence }));
+    expect(profile.selected.prunedPluginIds).toContain('redundant-tool@x');
+    const d = profile.decisions.find((x) => x.subjectId === 'redundant-tool@x');
+    expect(d?.reasonCodes).toContain('PRUNE_NONINFERIOR_REDUNDANT');
+  });
+
+  it('does not prune it in aggressive mode when no matching evidence exists', () => {
+    const profile = new DefaultProfileCompiler().compile(baseInput({ inventory: inv, graph: g, mode: 'aggressive' }));
+    expect(profile.selected.enabledPluginIds).toContain('redundant-tool@x');
+  });
+});

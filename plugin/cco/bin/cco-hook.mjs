@@ -333,6 +333,24 @@ var JsonStateStore = class {
     await atomicWriteJson(path3.join(dir, `${value.id}.json`), value);
     return value.id;
   }
+  /**
+   * All persisted evidence records (06_SESSION_PROFILE_COMPILER.md aggressive-mode gate,
+   * 09_QUALITY_MODEL_AND_EVALS.md). `evidenceDir` also holds per-suite subdirectories of raw
+   * `BenchmarkRun` JSON (apps/cli benchmark command) — only top-level files are records.
+   */
+  async listEvidence() {
+    const dir = this.paths.evidenceDir;
+    const entries = await fs2.readdir(dir, { withFileTypes: true }).catch(() => []);
+    const records = [];
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".json"))
+        continue;
+      const record = await readJsonIfExists(path3.join(dir, entry.name));
+      if (record)
+        records.push(record);
+    }
+    return records;
+  }
   async appendEvent(event) {
     const day = event.timestamp.slice(0, 10);
     await appendJsonl(path3.join(this.paths.eventsDir, `${day}.jsonl`), event);
@@ -828,12 +846,13 @@ async function main() {
     );
     const claudeVersion = null;
     const projectId = projectIdFromRoot(hookInput.cwd);
+    const evidence = { records: await store.listEvidence() };
     if (event === "SessionStart") {
       const digest = sessionStartDigest({
         profile,
         graph,
         config,
-        evidence: { records: [] },
+        evidence,
         agentTeamsEnabled: config.experimental.agentTeams
       });
       await store.appendEvent(
@@ -846,7 +865,7 @@ async function main() {
       if (!graph || !config.routing.enabled) return 0;
       const prompt = hookInput.prompt ?? "";
       const { hintText, reasonCode } = userPromptSubmitRoute(
-        { profile, graph, config, evidence: { records: [] }, agentTeamsEnabled: config.experimental.agentTeams },
+        { profile, graph, config, evidence, agentTeamsEnabled: config.experimental.agentTeams },
         prompt,
         hookInput.cwd,
         hookInput.sessionId

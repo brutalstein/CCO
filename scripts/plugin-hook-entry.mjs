@@ -64,13 +64,14 @@ async function main() {
 
     const claudeVersion = null;
     const projectId = projectIdFromRoot(hookInput.cwd);
+    const evidence = { records: await store.listEvidence() };
 
     if (event === 'SessionStart') {
       const digest = sessionStartDigest({
         profile,
         graph,
         config,
-        evidence: { records: [] },
+        evidence,
         agentTeamsEnabled: config.experimental.agentTeams
       });
       await store.appendEvent(
@@ -84,7 +85,7 @@ async function main() {
       if (!graph || !config.routing.enabled) return 0;
       const prompt = hookInput.prompt ?? '';
       const { hintText, reasonCode } = userPromptSubmitRoute(
-        { profile, graph, config, evidence: { records: [] }, agentTeamsEnabled: config.experimental.agentTeams },
+        { profile, graph, config, evidence, agentTeamsEnabled: config.experimental.agentTeams },
         prompt,
         hookInput.cwd,
         hookInput.sessionId
