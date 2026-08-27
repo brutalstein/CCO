@@ -25,7 +25,7 @@ const IGNORE_DIRS = new Set([
 const KNOWN_MANIFESTS = [
   'package.json', 'pyproject.toml', 'requirements.txt', 'Cargo.toml', 'go.mod',
   'pom.xml', 'build.gradle', '*.csproj', 'CMakeLists.txt', 'package.xml',
-  'Dockerfile', 'docker-compose.yml', 'docker-compose.yaml'
+  'Dockerfile', 'docker-compose.yml', 'docker-compose.yaml', '*.tf'
 ];
 
 export interface RepoAnalyzer {
@@ -41,8 +41,9 @@ export class DefaultRepoAnalyzer implements RepoAnalyzer {
 
   async fingerprint(root: string, options: RepoScanOptions = DEFAULT_REPO_SCAN_OPTIONS): Promise<RepoFingerprint> {
     const git = await this.gitStatus(root);
-    let files = await this.trackedFiles(root, git.isRepo, options);
-    let partial = false;
+    const tracked = await this.trackedFiles(root, git.isRepo, options);
+    let files = tracked.files;
+    let partial = tracked.partial;
     if (files.length > options.maxTrackedFiles) {
       files = files.slice(0, options.maxTrackedFiles);
       partial = true;
@@ -82,11 +83,11 @@ export class DefaultRepoAnalyzer implements RepoAnalyzer {
     }
   }
 
-  private async trackedFiles(root: string, isRepo: boolean, options: RepoScanOptions): Promise<string[]> {
+  private async trackedFiles(root: string, isRepo: boolean, options: RepoScanOptions): Promise<{ files: string[]; partial: boolean }> {
     if (isRepo) {
       try {
         const res = await this.launcher.runCapture({ command: 'git', args: ['ls-files'], cwd: root }, 8000);
-        if (res.code === 0) return res.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+        if (res.code === 0) return { files: res.stdout.split('\n').map((l) => l.trim()).filter(Boolean), partial: false };
       } catch {
         // fall through to bounded walk
       }
@@ -94,7 +95,7 @@ export class DefaultRepoAnalyzer implements RepoAnalyzer {
     return this.boundedWalk(root, options.maxTrackedFiles);
   }
 
-  private async boundedWalk(root: string, cap: number): Promise<string[]> {
+  private async boundedWalk(root: string, cap: number): Promise<{ files: string[]; partial: boolean }> {
     const out: string[] = [];
     const stack: string[] = [root];
     while (stack.length > 0 && out.length < cap) {
@@ -113,7 +114,7 @@ export class DefaultRepoAnalyzer implements RepoAnalyzer {
         if (out.length >= cap) break;
       }
     }
-    return out;
+    return { files: out, partial: stack.length > 0 || out.length >= cap };
   }
 
   private async inspectManifests(

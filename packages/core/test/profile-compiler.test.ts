@@ -202,4 +202,26 @@ describe('DefaultProfileCompiler (aggressive mode, non-inferiority evidence)', (
     const profile = new DefaultProfileCompiler().compile(baseInput({ inventory: inv, graph: g, mode: 'aggressive' }));
     expect(profile.selected.enabledPluginIds).toContain('redundant-tool@x');
   });
+
+  it('does not promote smoke-only evidence into aggressive pruning', () => {
+    const evidence = {
+      records: [{
+        schemaVersion: 1,
+        id: 'evidence_smoke',
+        suiteId: 'redundant-tool@x-suite',
+        taskFamily: ['utility-edit'],
+        claudeVersionFamily: '2.1-current',
+        model: 'default',
+        baselineProfileHash: 'native',
+        candidateProfileHash: 'profile_x',
+        trials: 2,
+        quality: { baselineSuccess: 1, candidateSuccess: 1, difference: 0, lowerBound: 0, tolerance: 0, nonInferior: true },
+        cost: {},
+        createdAt: new Date().toISOString(),
+        status: 'active' as const
+      }]
+    };
+    const profile = new DefaultProfileCompiler().compile(baseInput({ inventory: inv, graph: g, mode: 'aggressive', evidence }));
+    expect(profile.selected.enabledPluginIds).toContain('redundant-tool@x');
+  });
 });

@@ -30,6 +30,17 @@ export interface TrialResult {
   usage: { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number; costUsd?: number };
   infrastructureFailure: boolean;
   rawArtifactPath: string | null;
+  subagentOrWorkflowEvents: number;
+}
+
+export interface UsageTotals {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  costUsd: number;
+  wallMs: number;
+  subagentOrWorkflowEvents: number;
 }
 
 export interface ArmSummary {
@@ -37,6 +48,18 @@ export interface ArmSummary {
   trials: number;
   successRate: number;
   infrastructureFailures: number;
+  usageTotals: UsageTotals;
+}
+
+export type EvidenceGrade = 'smoke' | 'exploratory' | 'public-claim';
+
+export interface BenchmarkQualification {
+  grade: EvidenceGrade;
+  eligibleForOptimization: boolean;
+  eligibleForPublicClaim: boolean;
+  preregisteredTolerance: number;
+  minExploratoryTrialsPerArm: number;
+  publicClaimTrialsPerArm: number;
 }
 
 export interface NonInferiorityResult {
@@ -55,5 +78,7 @@ export interface BenchmarkRun {
   createdAt: string;
   arms: ArmSummary[];
   trials: TrialResult[];
+  trialOrder: string[];
   verdict: NonInferiorityResult | null;
+  qualification: BenchmarkQualification;
 }

@@ -9,16 +9,29 @@ import crypto from 'node:crypto';
 
 export async function ensureDir(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+  const stat = await fs.lstat(dir);
+  if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error(`refusing unsafe state directory: ${dir}`);
+  await fs.chmod(dir, 0o700).catch(() => undefined);
+}
+
+async function assertNotSymlink(filePath: string): Promise<void> {
+  const stat = await fs.lstat(filePath).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  });
+  if (stat?.isSymbolicLink()) throw new Error(`refusing symbolic-link file target: ${filePath}`);
 }
 
 export async function atomicWriteFile(filePath: string, content: string): Promise<void> {
   await ensureDir(path.dirname(filePath));
+  await assertNotSymlink(filePath);
   const tmp = path.join(
     path.dirname(filePath),
     `.${path.basename(filePath)}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`
   );
   await fs.writeFile(tmp, content, { mode: 0o600 });
   await fs.rename(tmp, filePath);
+  await fs.chmod(filePath, 0o600).catch(() => undefined);
 }
 
 export async function atomicWriteJson(filePath: string, value: unknown): Promise<void> {
@@ -30,6 +43,7 @@ export async function atomicWriteJson(filePath: string, value: unknown): Promise
 // failure model (22_FAILURE_MODES_FALLBACKS.md), not just the ENOENT case.
 export async function readJsonIfExists<T>(filePath: string): Promise<T | null> {
   try {
+    await assertNotSymlink(filePath);
     const raw = await fs.readFile(filePath, 'utf8');
     return JSON.parse(raw) as T;
   } catch {
@@ -39,7 +53,9 @@ export async function readJsonIfExists<T>(filePath: string): Promise<T | null> {
 
 export async function appendJsonl(filePath: string, value: unknown): Promise<void> {
   await ensureDir(path.dirname(filePath));
+  await assertNotSymlink(filePath);
   await fs.appendFile(filePath, JSON.stringify(value) + '\n', { mode: 0o600 });
+  await fs.chmod(filePath, 0o600).catch(() => undefined);
 }
 
 export function canonicalHash(value: unknown): string {

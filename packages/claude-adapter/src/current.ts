@@ -1,4 +1,5 @@
 import { NodeProcessLauncher, type ProcessLauncher, atomicWriteJson } from '@cco/platform';
+import path from 'node:path';
 import type {
   BenchmarkInvocationSpec,
   ClaudeAdapter,
@@ -8,6 +9,8 @@ import type {
   HookInput,
   OverlayInput,
   PluginDetailsSource,
+  PluginInstallRequest,
+  PluginInstallResult,
   PluginInventorySource,
   ProbeContext,
   SpawnSpecLike,
@@ -22,6 +25,34 @@ import { normalizeHookInput as normalizeHookInputImpl, encodeHookContext as enco
 
 const PROBE_TIMEOUT_MS = 8000;
 const DETAILS_TIMEOUT_MS = 8000;
+const INSTALL_TIMEOUT_MS = 60000;
+
+interface MarketplaceEntry {
+  name: string;
+  repo?: string;
+  url?: string;
+  path?: string;
+}
+
+function parseMarketplaceList(raw: string): MarketplaceEntry[] {
+  try {
+    const value = JSON.parse(raw) as unknown;
+    if (!Array.isArray(value)) return [];
+    return value.filter((entry): entry is MarketplaceEntry => !!entry && typeof entry === 'object' && typeof (entry as MarketplaceEntry).name === 'string');
+  } catch {
+    return [];
+  }
+}
+
+function marketplaceForSource(entries: MarketplaceEntry[], source: string, cwd: string): MarketplaceEntry | undefined {
+  const github = source.replace(/^https:\/\/github\.com\//i, '').replace(/\.git$/i, '');
+  const local = path.resolve(cwd, source);
+  return entries.find((entry) =>
+    entry.repo?.replace(/\.git$/i, '') === github ||
+    entry.url === source ||
+    (entry.path ? path.resolve(entry.path) === local : false)
+  );
+}
 
 /**
  * Adapter backed by the real `claude` executable (04_CLAUDE_CODE_INTEGRATION.md).
@@ -109,6 +140,84 @@ export class CurrentClaudeAdapter implements ClaudeAdapter {
     }
   }
 
+  async ensurePluginInstalled(request: PluginInstallRequest): Promise<PluginInstallResult> {
+    const binary = request.env.resolvedBinaryPath ?? 'claude';
+    const context = { cwd: request.cwd, env: request.env };
+    const before = await this.listPlugins(context);
+    const existing = before.find((plugin) => plugin.canonicalId === request.pluginName || plugin.canonicalId.startsWith(request.pluginName + '@'));
+    if (existing) {
+      if (!existing.enabled) {
+        const enabled = await this.launcher.runCapture(
+          { command: binary, args: ['plugin', 'enable', existing.canonicalId, '--scope', 'user'], cwd: request.cwd },
+          INSTALL_TIMEOUT_MS
+        );
+        if (enabled.code !== 0) {
+          return { ok: false, alreadyInstalled: true, canonicalId: existing.canonicalId, marketplaceName: existing.canonicalId.split('@')[1] ?? null, errors: [enabled.stderr.trim() || `plugin enable exited ${enabled.code}`] };
+        }
+        const refreshed = await this.listPlugins(context);
+        if (!refreshed.find((plugin) => plugin.canonicalId === existing.canonicalId)?.enabled) {
+          return { ok: false, alreadyInstalled: true, canonicalId: existing.canonicalId, marketplaceName: existing.canonicalId.split('@')[1] ?? null, errors: ['CCO plugin was not enabled after enable command'] };
+        }
+      }
+      if (existing.installPath) {
+        const validation = await this.launcher.runCapture(
+          { command: binary, args: ['plugin', 'validate', existing.installPath, '--strict'], cwd: request.cwd },
+          INSTALL_TIMEOUT_MS
+        );
+        if (validation.code !== 0) {
+          return { ok: false, alreadyInstalled: true, canonicalId: existing.canonicalId, marketplaceName: existing.canonicalId.split('@')[1] ?? null, errors: [validation.stderr.trim() || 'installed CCO plugin failed strict validation'] };
+        }
+      }
+      return { ok: true, alreadyInstalled: true, canonicalId: existing.canonicalId, marketplaceName: existing.canonicalId.split('@')[1] ?? null, errors: [] };
+    }
+
+    const listMarketplaces = async (): Promise<MarketplaceEntry[]> => {
+      const result = await this.launcher.runCapture(
+        { command: binary, args: ['plugin', 'marketplace', 'list', '--json'], cwd: request.cwd },
+        DETAILS_TIMEOUT_MS
+      );
+      return result.code === 0 ? parseMarketplaceList(result.stdout) : [];
+    };
+
+    let marketplace = marketplaceForSource(await listMarketplaces(), request.marketplaceSource, request.cwd);
+    if (!marketplace) {
+      const added = await this.launcher.runCapture(
+        { command: binary, args: ['plugin', 'marketplace', 'add', request.marketplaceSource], cwd: request.cwd },
+        INSTALL_TIMEOUT_MS
+      );
+      if (added.code !== 0) {
+        return { ok: false, alreadyInstalled: false, canonicalId: null, marketplaceName: null, errors: [added.stderr.trim() || `marketplace add exited ${added.code}`] };
+      }
+      marketplace = marketplaceForSource(await listMarketplaces(), request.marketplaceSource, request.cwd);
+    }
+
+    const marketplaceName = marketplace?.name ?? request.defaultMarketplaceName;
+    const canonicalId = `${request.pluginName}@${marketplaceName}`;
+    const installed = await this.launcher.runCapture(
+      { command: binary, args: ['plugin', 'install', canonicalId, '--scope', 'user', '--yes'], cwd: request.cwd },
+      INSTALL_TIMEOUT_MS
+    );
+    if (installed.code !== 0) {
+      return { ok: false, alreadyInstalled: false, canonicalId: null, marketplaceName, errors: [installed.stderr.trim() || `plugin install exited ${installed.code}`] };
+    }
+
+    const after = await this.listPlugins(context);
+    const plugin = after.find((item) => item.canonicalId === canonicalId || item.canonicalId.startsWith(request.pluginName + '@'));
+    if (!plugin?.enabled) {
+      return { ok: false, alreadyInstalled: false, canonicalId: plugin?.canonicalId ?? null, marketplaceName, errors: ['CCO plugin was not present and enabled after installation'] };
+    }
+    if (plugin.installPath) {
+      const validation = await this.launcher.runCapture(
+        { command: binary, args: ['plugin', 'validate', plugin.installPath, '--strict'], cwd: request.cwd },
+        INSTALL_TIMEOUT_MS
+      );
+      if (validation.code !== 0) {
+        return { ok: false, alreadyInstalled: false, canonicalId: plugin.canonicalId, marketplaceName, errors: [validation.stderr.trim() || 'installed CCO plugin failed strict validation'] };
+      }
+    }
+    return { ok: true, alreadyInstalled: false, canonicalId: plugin.canonicalId, marketplaceName, errors: [] };
+  }
+
   async buildSettingsOverlay(input: OverlayInput, outPath: string | null): Promise<ValidatedOverlay> {
     const json = buildOverlayJson(input);
     if (outPath) await atomicWriteJson(outPath, json);
@@ -132,6 +241,7 @@ export class CurrentClaudeAdapter implements ClaudeAdapter {
     if (spec.outputFormat === 'stream-json') args.push('--verbose');
     if (spec.model) args.push('--model', spec.model);
     if (spec.maxTurns) args.push('--max-turns', String(spec.maxTurns));
+    if (spec.maxBudgetUsd !== undefined) args.push('--max-budget-usd', String(spec.maxBudgetUsd));
     if (spec.settingsFile) args.push('--settings', spec.settingsFile);
     if (spec.mcpConfig) args.push('--mcp-config', spec.mcpConfig);
     if (spec.strictMcpConfig) args.push('--strict-mcp-config');

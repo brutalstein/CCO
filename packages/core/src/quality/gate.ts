@@ -16,6 +16,7 @@ export interface QualityGate {
 }
 
 const PUBLIC_CLAIM_TRIALS = 10;
+const MIN_EXPLORATORY_TRIALS = 3;
 
 /**
  * Conservative non-inferiority gate (09_QUALITY_MODEL_AND_EVALS.md, 08_OPTIMIZATION_ENGINE.md
@@ -24,7 +25,7 @@ const PUBLIC_CLAIM_TRIALS = 10;
 export class DefaultQualityGate implements QualityGate {
   assess(candidate: CandidateFingerprint, task: TaskFamilyKey, evidence: EvidenceIndex): QualityAssessment {
     const matches = evidence.records.filter(
-      (r) => (r.candidateProfileHash === candidate || r.baselineProfileHash === candidate) && r.taskFamily.some((f) => task.includes(f))
+      (r) => r.trials >= MIN_EXPLORATORY_TRIALS && (r.candidateProfileHash === candidate || r.baselineProfileHash === candidate) && r.taskFamily.some((f) => task.includes(f))
     );
     if (matches.length === 0) {
       return { status: 'unknown', class: 'D', evidenceIds: [] };

@@ -1,5 +1,6 @@
 import type { ExecutionPlan } from '../planning/planner.js';
 import type { CompiledProfile } from '../types.js';
+import type { ToolSearchStatus } from '@cco/claude-adapter';
 
 export type CacheDisruptionClass = 'none' | 'append_only' | 'deferred_tool_change' | 'tool_prefix_change' | 'model_switch' | 'unknown';
 
@@ -16,6 +17,8 @@ export interface CostProjection {
 
 export interface ProfileCostInput {
   profile: CompiledProfile;
+  toolSearchStatus?: ToolSearchStatus;
+  mcpTopologyChanged?: boolean;
 }
 
 export interface PlanCostInput {
@@ -31,6 +34,13 @@ export interface CostModel {
 export class DefaultCostModel implements CostModel {
   profileCost(input: ProfileCostInput): CostProjection {
     const p = input.profile.costProjection;
+    const cacheDisruptionClass: CacheDisruptionClass = !input.mcpTopologyChanged
+      ? 'none'
+      : input.toolSearchStatus === 'deferred-supported'
+        ? 'deferred_tool_change'
+        : input.toolSearchStatus === 'prefix-loaded-or-search-disabled'
+          ? 'tool_prefix_change'
+          : 'unknown';
     return {
       categories: {
         alwaysOnBefore: { value: p.alwaysOnBefore, source: 'anthropic_projected' },
@@ -38,7 +48,7 @@ export class DefaultCostModel implements CostModel {
         unknownBeforeCount: { value: p.unknownBefore, source: 'unknown' },
         unknownAfterCount: { value: p.unknownAfter, source: 'unknown' }
       },
-      cacheDisruptionClass: 'none',
+      cacheDisruptionClass,
       totalTokenEstimate: p.alwaysOnAfter
     };
   }

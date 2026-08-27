@@ -22,6 +22,11 @@ describe('parsePluginListJson', () => {
     const out = parsePluginListJson(JSON.stringify([{ id: 'a@x', name: 'a', enabled: true, futureField: 42 }]));
     expect(out[0].canonicalId).toBe('a@x');
   });
+
+  it('retains Claude-provided installPath for bounded deep audit', () => {
+    const out = parsePluginListJson(JSON.stringify([{ id: 'a@x', enabled: true, installPath: '/plugins/a' }]));
+    expect(out[0].installPath).toBe('/plugins/a');
+  });
 });
 
 describe('parsePluginDetailsJson', () => {

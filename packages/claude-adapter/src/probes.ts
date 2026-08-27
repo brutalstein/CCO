@@ -26,13 +26,19 @@ export function detectFeatures(helpText: string): ClaudeFeatures {
     pluginListJson: has('plugin'),
     pluginDetails: has('plugin'),
     settingsOverlay: has('--settings'),
-    toolSearchExpected: true,
+    toolSearchExpected: detectToolSearchStatus(helpText) === 'deferred-supported',
     workflows: has('workflow'),
     agentTeams: has('team')
   };
 }
 
 export function detectToolSearchStatus(helpText: string): ToolSearchStatus {
-  if (helpText.toLowerCase().includes('mcp')) return 'deferred-supported';
+  const normalized = helpText.toLowerCase();
+  if (/tool[- ]search/.test(normalized)) {
+    if (/disable(?:d)?[^\n]{0,40}tool[- ]search|tool[- ]search[^\n]{0,40}disable(?:d)?/.test(normalized)) {
+      return 'prefix-loaded-or-search-disabled';
+    }
+    return 'deferred-supported';
+  }
   return 'unknown';
 }

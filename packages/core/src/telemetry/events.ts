@@ -1,9 +1,8 @@
 import crypto from 'node:crypto';
 import { canonicalHash } from '@cco/platform';
 import { redactObject } from '../security/redact.js';
-import { SCHEMA_VERSION, type TelemetryEvent } from '../types.js';
+import { CCO_VERSION, SCHEMA_VERSION, type TelemetryEvent } from '../types.js';
 
-const CCO_VERSION = '1.0.0';
 const EVENT_VERSION = 1;
 
 export function projectIdFromRoot(root: string): string {

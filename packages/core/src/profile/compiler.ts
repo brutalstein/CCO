@@ -1,6 +1,8 @@
 import { canonicalHash } from '@cco/platform';
 import type { ClaudeEnvironment } from '@cco/claude-adapter';
+import { profileIntegrityHash } from '../security/validator.js';
 import {
+  CCO_VERSION,
   OPTIMIZER_MODEL_VERSION,
   SCHEMA_VERSION,
   type CapabilityGraph,
@@ -230,7 +232,7 @@ export class DefaultProfileCompiler implements ProfileCompiler {
 
   private findNonInferiorEvidence(input: CompileProfileInput, canonicalId: string, _graph: CapabilityGraph): string | null {
     const match = input.evidence.records.find(
-      (r) => r.status === 'active' && r.quality.nonInferior && r.suiteId.includes(canonicalId)
+      (r) => r.status === 'active' && r.trials >= input.config.optimization.quality.minExploratoryTrialsPerArm && r.quality.nonInferior && r.suiteId.includes(canonicalId)
     );
     return match?.id ?? null;
   }
@@ -265,6 +267,7 @@ export class DefaultProfileCompiler implements ProfileCompiler {
 
     const profile: CompiledProfile = {
       schemaVersion: SCHEMA_VERSION,
+      ccoVersion: CCO_VERSION,
       id,
       createdAt: new Date().toISOString(),
       mode,
@@ -285,7 +288,7 @@ export class DefaultProfileCompiler implements ProfileCompiler {
       runtimeCapabilityIds,
       integrityHash: ''
     };
-    profile.integrityHash = canonicalHash({ ...profile, integrityHash: undefined, id: undefined, createdAt: undefined });
+    profile.integrityHash = profileIntegrityHash(profile);
     void OPTIMIZER_MODEL_VERSION;
     return profile;
   }

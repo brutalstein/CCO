@@ -61,4 +61,10 @@ describe('JsonStateStore.listEvidence', () => {
     expect(records).toHaveLength(1);
     expect(records[0].id).toBe('evidence_1');
   });
+
+  it('rejects snapshot ids that could escape their owned directory', async () => {
+    const store = await tempStore();
+    await expect(store.getSnapshot('profile', '../outside')).rejects.toThrow('invalid snapshot id');
+    await expect(store.putSnapshot('profile', { id: '..\\outside' })).rejects.toThrow('invalid snapshot id');
+  });
 });

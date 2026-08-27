@@ -9,10 +9,10 @@ published results; it intentionally starts empty.
 One suite (`simple-utility-v1`) has been run against a real, live Claude Code
 CLI install (see the published result below): 2 trials per arm, a small
 single-file JavaScript edit task, `baseline` (native) vs `candidate` (CCO's
-compiled profile for this repository). Both arms completed the task
-correctly in every trial (non-inferior, 0 quality delta) — this is real
-evidence that CCO's optimization does not degrade task completion, run live
-rather than assumed.
+compiled profile for this repository). Both arms completed the task in every
+trial (0 observed quality delta). This is a real live smoke result, but two
+trials are below the exploratory evidence floor and therefore do not establish
+statistical non-inferiority or authorize profile promotion.
 
 That run's measured token delta between arms was not large enough to be
 distinguishable from cache-variance noise at 2 trials, because on the
@@ -51,4 +51,4 @@ denied. Both fixes are in `packages/claude-adapter/src/current.ts` and
 
 | Date | Suite | Claude version | Baseline | Candidate | Quality | Token delta | Artifact |
 |---|---|---|---|---|---|---|---|
-| 2026-08-26 | `simple-utility-v1` | 2.1.246 | native, 2 trials, 2/2 success | CCO safe profile, 2 trials, 2/2 success | non-inferior (0 delta) | not distinguishable from noise at n=2 on this machine's plugin set | `benchmarks/published/simple-utility-v1-run_56a34bbd3db70084/summary.json` |
+| 2026-08-26 | `simple-utility-v1` | 2.1.246 | native, 2 trials, 2/2 success | CCO safe profile, 2 trials, 2/2 success | smoke pass; not statistical non-inferiority | not distinguishable from noise at n=2 on this machine's plugin set | `benchmarks/published/simple-utility-v1-run_56a34bbd3db70084/summary.json` |

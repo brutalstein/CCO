@@ -5,6 +5,7 @@
   "type": "object",
   "required": [
     "schemaVersion",
+    "ccoVersion",
     "id",
     "createdAt",
     "mode",
@@ -25,6 +26,10 @@
     "schemaVersion": {
       "type": "integer",
       "const": 1
+    },
+    "ccoVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+"
     },
     "id": {
       "type": "string",

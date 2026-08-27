@@ -30,8 +30,8 @@ Every plugin, skill, agent and MCP server you install in Claude Code adds always
 
 This is the part that matters most:
 
-- CCO **never modifies `~/.claude/settings.json`**, your project settings, or your installed plugin list. Every optimization is delivered through a temporary `--settings` overlay file passed to a single `claude` invocation — the moment that session ends, the overlay is gone.
-- CCO **never disables a plugin you already have enabled** as part of ordinary use, and it **never enables one you had disabled** without you explicitly asking it to.
+- `cco run` **never modifies `~/.claude/settings.json`**, project settings, or the persistent installed-plugin state. Every optimization is delivered through a temporary `--settings` overlay passed to one `claude` invocation; the overlay is removed when that session ends.
+- That session-only overlay may set a baseline-enabled plugin to `false` for the current invocation. CCO never persistently disables it and never enables a baseline-disabled plugin automatically. The explicit `cco init` command only installs/enables CCO itself.
 - Nothing CCO does can widen permissions. The settings overlay is structurally forbidden from touching a `permissions` key at all — this is enforced by a release-blocking test, not a convention.
 - If anything about your environment looks even slightly uncertain, CCO falls back to native Claude Code behavior instead of guessing. You can also just... not run it. Your existing setup is completely unaffected either way.
 - The CLI (`cco`) is entirely optional and external. The companion plugin (`cco init`) is *additive only* — it adds one new plugin to your list, it never edits, disables, or reorders anything already there.
@@ -75,7 +75,7 @@ node apps/cli/dist/main.js analyze    # dry-run: what would be kept/pruned, and 
 node apps/cli/dist/main.js run        # launch Claude with an ephemeral, optimized --settings overlay
 ```
 
-`cco init` checks your Claude Code install and writes local CCO config; it does **not** install the companion plugin for you. For per-prompt routing hints, install the companion plugin yourself — one command if you haven't already added the marketplace (see [Install](#install)) — which adds SessionStart/UserPromptSubmit hooks + four user-invoked diagnostic skills, additive to whatever plugins you already have.
+`cco init` checks Claude Code, creates owner-restricted local CCO state, and idempotently installs only the CCO companion plugin from the versioned `brutalstein/cco` marketplace. Use `--plugin-source <source>` to select an approved mirror or local marketplace. It never installs, disables, or reorders unrelated plugins.
 
 ## Real numbers, not marketing copy
 
@@ -140,11 +140,12 @@ is a common way these projects quietly lie:
   numbers like `~1.420 tok`. This was verified end-to-end against 11 real,
   independently-installed plugins on a live machine, not just against
   fixtures.
-- **A benchmark suite has actually been run against a live `claude` binary**,
+- **A smoke benchmark suite has actually been run against a live `claude` binary**,
   not just designed. `benchmarks/suites/simple-utility-v1` ran a real
   single-file edit task through `claude -p`, baseline vs a CCO-compiled
   profile, 2 trials per arm: both arms completed the task correctly in every
-  trial (non-inferior). The raw result is published at
+  trial. Under the current qualification policy, two trials are smoke evidence
+  only and cannot promote pruning or support a general non-inferiority claim. The raw result is published at
   `benchmarks/published/simple-utility-v1-run_56a34bbd3db70084/summary.json`
   — see `BENCHMARKS.md` for what it does and doesn't show yet.
 
@@ -189,7 +190,7 @@ See `ARCHITECTURE.md` for the fuller breakdown.
 
 ## Status
 
-Core packages build clean and are unit-tested (60 tests, including a labeled router qualification corpus, the section-9 compiler fixture matrix, and the evidence-pipeline/aggressive-mode suite — see `docs/CLAIMS.md`); `doctor`/`inventory`/`analyze`/`audit`/`run` have been exercised against a real Claude Code install with real installed plugins (not fixtures). The `brutalstein/cco` marketplace and `cco@cco` plugin install path is verified end-to-end from a live GitHub clone, and one benchmark suite has been run against a live `claude` binary (see above). CI is green on ubuntu-latest, windows-latest, and macos-latest. See `CHANGELOG.md` for exactly what has and hasn't been verified yet, and `docs/CLAIMS.md` for which specific claims are backed by evidence today versus still open (npm publish, multi-family public-claim-grade benchmarking, and the complete acceptance matrix are still open).
+Core packages build clean and are unit-tested (101 tests across 22 files, including the labeled router corpus, compiler fixture matrix, launcher lifecycle, hook integrity/performance, deep-audit, benchmark-isolation, and release-safety suites — see `docs/CLAIMS.md`). `doctor`/`inventory`/`analyze`/`audit`/`run` have been exercised against a real Claude Code install with real installed plugins. The `brutalstein/cco` marketplace and `cco@cco` plugin install path is verified end-to-end from a live GitHub clone, and one smoke benchmark suite has been run against a live `claude` binary. The last published commit was green on ubuntu-latest, windows-latest, and macos-latest; the current release diff must pass the same matrix before publication. npm publication and multi-family public-claim-grade benchmarking remain external gates.
 
 ## Contributing
 

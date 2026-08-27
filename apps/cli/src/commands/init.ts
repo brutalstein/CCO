@@ -2,6 +2,7 @@ import { defaultConfig } from '@cco/core';
 import { createContext, printJson } from '../context.js';
 import type { ParsedArgs } from '../argv.js';
 import { flagBool } from '../argv.js';
+import { flagString } from '../argv.js';
 
 /** `cco init` (13_CLI_SPEC.md section 2, 25_INSTALLATION_DISTRIBUTION_RELEASE.md section 3). */
 export async function cmdInit(parsed: ParsedArgs): Promise<number> {
@@ -15,23 +16,34 @@ export async function cmdInit(parsed: ParsedArgs): Promise<number> {
     return 1;
   }
 
-  const existing = await ctx.store.readConfig().catch(() => null);
-  if (!existing) await ctx.store.writeConfig(defaultConfig());
+  const existing = await ctx.store.readConfig().catch(() => defaultConfig());
+  await ctx.store.writeConfig(existing);
 
-  await ctx.inventoryService.loadOrRefresh({ cwd: ctx.cwd });
+  const install = await ctx.adapter.ensurePluginInstalled({
+    cwd: ctx.cwd,
+    env,
+    marketplaceSource: flagString(parsed.flags, 'plugin-source') ?? 'brutalstein/cco',
+    pluginName: 'cco',
+    defaultMarketplaceName: 'cco'
+  });
+  if (!install.ok) {
+    if (json) printJson(install, 'init', false, [], install.errors);
+    else console.error(`CCO plugin installation failed: ${install.errors.join('; ')}`);
+    return 1;
+  }
 
-  const pluginGuidance =
-    'CCO plugin not auto-installed by `cco init` (this only sets up local CLI config). ' +
-    'For per-prompt routing hints, install the companion plugin yourself: ' +
-    'claude plugin marketplace add brutalstein/cco && claude plugin install cco@cco ' +
-    '(or, working from a local checkout: claude plugin install --plugin-dir ./plugin/cco)';
+  await ctx.inventoryService.loadOrRefresh({ cwd: ctx.cwd, forceRefresh: !install.alreadyInstalled });
+
+  const pluginStatus = install.alreadyInstalled
+    ? `CCO plugin already installed (${install.canonicalId})`
+    : `CCO plugin installed and strictly validated (${install.canonicalId})`;
 
   if (json) {
-    printJson({ claudeVersion: env.version, configDir: ctx.store.paths.configDir, pluginGuidance }, 'init');
+    printJson({ claudeVersion: env.version, configDir: ctx.store.paths.configDir, pluginStatus }, 'init');
   } else {
     console.log(`Claude Code ${env.version ?? 'detected'} found.`);
     console.log(`CCO config: ${ctx.store.paths.configDir}`);
-    console.log(pluginGuidance);
+    console.log(pluginStatus);
     console.log('Next: cco run');
   }
   return 0;

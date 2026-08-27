@@ -9,6 +9,7 @@ import {
   sessionStartDigest,
   userPromptSubmitRoute,
   graphSnapshotId,
+  validateHookArtifacts,
   type CapabilityGraph,
   type CCOConfig,
   type CompiledProfile
@@ -37,6 +38,7 @@ async function loadHookConfig(root: string, store: JsonStateStore): Promise<CCOC
 }
 
 export async function runHook(parsed: ParsedArgs): Promise<number> {
+  const startedAt = Date.now();
   const event = EVENT_MAP[parsed.args[0] ?? ''];
   if (!event) return 0;
   if (process.env.CCO_ACTIVE !== '1') return 0;
@@ -66,12 +68,15 @@ export async function runHook(parsed: ParsedArgs): Promise<number> {
       'graph',
       graphSnapshotId(profile.inventoryId, profile.repoFingerprintId)
     );
+    const deadlineMs = Math.min(config.routing.hardDeadlineMs, 100);
+    if (validateHookArtifacts(profile, graph).length > 0 || Date.now() - startedAt >= deadlineMs) return 0;
 
     const claudeVersion = null;
     const projectId = projectIdFromRoot(hookInput.cwd);
     const evidence = { records: await store.listEvidence() };
 
     if (event === 'SessionStart') {
+      if (hookInput.source && hookInput.source !== 'startup' && hookInput.source !== 'resume') return 0;
       const digest = sessionStartDigest({
         profile,
         graph,
@@ -82,7 +87,7 @@ export async function runHook(parsed: ParsedArgs): Promise<number> {
       await store.appendEvent(
         buildEvent('session_start', claudeVersion, projectId, hookInput.sessionId, { profileId: profile.id })
       );
-      if (digest) process.stdout.write(JSON.stringify(ctx.adapter.encodeHookContext('SessionStart', digest)) + '\n');
+      if (digest && Date.now() - startedAt < deadlineMs) process.stdout.write(JSON.stringify(ctx.adapter.encodeHookContext('SessionStart', digest)) + '\n');
       return 0;
     }
 
@@ -102,7 +107,7 @@ export async function runHook(parsed: ParsedArgs): Promise<number> {
           injected: hintText !== null
         })
       );
-      if (hintText) process.stdout.write(JSON.stringify(ctx.adapter.encodeHookContext('UserPromptSubmit', hintText)) + '\n');
+      if (hintText && Date.now() - startedAt < deadlineMs) process.stdout.write(JSON.stringify(ctx.adapter.encodeHookContext('UserPromptSubmit', hintText)) + '\n');
       return 0;
     }
 

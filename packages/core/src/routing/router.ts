@@ -85,12 +85,14 @@ export class DefaultRuntimeRouter implements RuntimeRouter {
     const plans = new DefaultPlanner().candidates(intent, runtime, input.repo, input.evidence, input.agentTeamsEnabled);
     const selected = new DefaultOptimizer().selectPlan(plans, { agentTeamsEnabled: input.agentTeamsEnabled });
 
+    if ((input.nowMs ?? Date.now)() > deadline) return this.abstain(input, 'DEADLINE', intent.confidence, intent);
     if (selected.type === 'native') return this.abstain(input, 'NATIVE_BEST', intent.confidence, intent);
 
     const text = this.compactRouteText(selected, intent);
     if (estimateTokens(text) > input.config.routing.maxInjectedTokens) {
       return this.abstain(input, 'CONTEXT_BUDGET', intent.confidence, intent);
     }
+    if ((input.nowMs ?? Date.now)() > deadline) return this.abstain(input, 'DEADLINE', intent.confidence, intent);
 
     const decision: RouteDecision = {
       schemaVersion: SCHEMA_VERSION,

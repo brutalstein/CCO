@@ -43,6 +43,12 @@ const KIND_DIR: Record<SnapshotKind, keyof PlatformPaths> = {
   evidence: 'evidenceDir'
 };
 
+const SNAPSHOT_ID = /^[A-Za-z0-9][A-Za-z0-9._@-]{0,199}$/;
+
+function assertSnapshotId(id: string): void {
+  if (!SNAPSHOT_ID.test(id)) throw new Error('invalid snapshot id');
+}
+
 /**
  * JSON-file / JSONL state store (03_SYSTEM_ARCHITECTURE.md section 3.11, ADR-010).
  * No database dependency; every write is atomic.
@@ -72,11 +78,13 @@ export class JsonStateStore implements StateStore {
   }
 
   async getSnapshot<T>(kind: SnapshotKind, id: string): Promise<T | null> {
+    assertSnapshotId(id);
     const dir = this.paths[KIND_DIR[kind]];
     return readJsonIfExists<T>(path.join(dir, `${id}.json`));
   }
 
   async putSnapshot<T extends { id: string }>(kind: SnapshotKind, value: T): Promise<string> {
+    assertSnapshotId(value.id);
     const dir = this.paths[KIND_DIR[kind]];
     await atomicWriteJson(path.join(dir, `${value.id}.json`), value);
     return value.id;

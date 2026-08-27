@@ -7,6 +7,8 @@ import type {
   HookInput,
   OverlayInput,
   PluginDetailsSource,
+  PluginInstallRequest,
+  PluginInstallResult,
   PluginInventorySource,
   ProbeContext,
   SpawnSpecLike,
@@ -41,6 +43,17 @@ export class FakeClaudeAdapter implements ClaudeAdapter {
     return this.fixture.details[id] ?? null;
   }
 
+  async ensurePluginInstalled(request: PluginInstallRequest): Promise<PluginInstallResult> {
+    const installed = this.fixture.plugins.find((plugin) => plugin.canonicalId === request.pluginName || plugin.canonicalId.startsWith(request.pluginName + '@'));
+    return {
+      ok: true,
+      alreadyInstalled: !!installed,
+      canonicalId: installed?.canonicalId ?? `${request.pluginName}@${request.defaultMarketplaceName}`,
+      marketplaceName: request.defaultMarketplaceName,
+      errors: []
+    };
+  }
+
   async buildSettingsOverlay(input: OverlayInput, outPath: string | null): Promise<ValidatedOverlay> {
     return { filePath: outPath, json: buildOverlayJson(input) };
   }
@@ -58,7 +71,10 @@ export class FakeClaudeAdapter implements ClaudeAdapter {
   }
 
   benchmarkInvocation(spec: BenchmarkInvocationSpec): SpawnSpecLike {
-    return { command: 'claude', args: ['-p', spec.prompt, '--output-format', spec.outputFormat], cwd: spec.cwd };
+    const args = ['-p', spec.prompt, '--output-format', spec.outputFormat];
+    if (spec.maxTurns) args.push('--max-turns', String(spec.maxTurns));
+    if (spec.maxBudgetUsd !== undefined) args.push('--max-budget-usd', String(spec.maxBudgetUsd));
+    return { command: 'claude', args, cwd: spec.cwd };
   }
 }
 

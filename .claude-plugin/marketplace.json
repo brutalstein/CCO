@@ -1,17 +1,19 @@
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "cco",
-  "description": "Claude Capability Optimizer - trims per-session extension token cost and routes prompts to already-enabled capabilities, without touching your existing Claude Code configuration.",
   "owner": {
     "name": "brutalstein",
     "url": "https://github.com/brutalstein"
   },
+  "description": "Official marketplace for the unofficial Claude Capability Optimizer companion.",
   "plugins": [
     {
       "name": "cco",
-      "description": "Minimal companion plugin: SessionStart/UserPromptSubmit/SessionEnd routing hooks plus four user-invoked diagnostic skills (status, explain, audit, profile).",
       "source": "./plugin/cco",
-      "category": "productivity"
+      "description": "Minimal in-session companion for CCO's pre-session capability optimizer.",
+      "version": "1.0.0",
+      "license": "Apache-2.0",
+      "strict": true
     }
   ]
 }

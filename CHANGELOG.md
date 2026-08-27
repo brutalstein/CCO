@@ -134,13 +134,11 @@ not by inspection:
   prune-safety decision directly but were accepted unbounded from user
   config, unlike every other safety-relevant numeric field. Added `[0, 1]`
   range validation.
-- README claimed `cco init` "installs the small companion plugin"; the real
-  `cmdInit` (`apps/cli/src/commands/init.ts`) only probes the Claude install
-  and writes local CCO config — it never calls plugin install. Corrected the
-  README claim and `cco init`'s own guidance text (which pointed only at a
-  dev-only `--plugin-dir` flow) to reference the real public two-command
-  install path. Verified `cco init` is idempotent against a live install
-  (byte-identical output across two runs).
+- `cco init` now creates a validated owner-restricted config and idempotently
+  installs/enables only CCO from the selected marketplace source. It verifies
+  the installed plugin with Claude's strict validator and never mutates an
+  unrelated plugin. Adapter tests cover new, existing-enabled,
+  existing-disabled, and managed-policy failure paths.
 - **CLI package was not actually installable outside the monorepo.**
   `apps/cli/package.json` declared `@cco/core`/`@cco/claude-adapter`/
   `@cco/platform`/`@cco/report`/`@cco/benchmark` as ordinary npm dependencies;
@@ -171,6 +169,34 @@ not by inspection:
   suite in `profile-compiler.test.ts`) and live, against 3 real
   `EvidenceRecord`s already on this machine from prior live benchmark runs.
 
+### Fixed (production qualification hardening)
+
+- Added profile schema/runtime-version/integrity validation and graph/profile
+  fingerprint closure before hooks route. Invalid, stale, tampered, or
+  major-version-mismatched artifacts now no-op within a hard 100ms deadline.
+- Replaced the audit placeholder with a bounded, symlink-safe static extension
+  scanner that never executes third-party hooks/MCP/LSP code and never records
+  credential values.
+- Hardened state I/O against symlink targets and snapshot path traversal;
+  owner-only modes are applied on POSIX. Non-git scan caps now correctly set
+  `partial=true`, and Terraform manifests participate in fingerprinting.
+- Launcher conflicts with a user-provided `--settings` now preserve exact user
+  arguments via native fallback (or exit 3 under strict mode); recursive CCO
+  launch targets are rejected. `--state-dir` is implemented consistently.
+- Benchmark trials now use fresh isolated copies, alternating arm order,
+  explicit budgets, validator/infrastructure failure classification, full
+  token/cache/cost/subagent totals, raw artifacts, and smoke/exploratory/
+  public-claim evidence grades. Non-inferiority uses a one-sided
+  Wilson/Newcombe score interval so tiny perfect samples cannot masquerade as
+  certainty; smoke evidence cannot promote pruning.
+- Release output now includes a self-contained CLI tarball, plugin ZIP with
+  hidden manifest content, SPDX SBOM, changelog, and SHA-256 checksums. The
+  verifier installs the tarball in isolation and exercises help, doctor,
+  inventory, analyze, and audit. CI runs this artifact qualification on all
+  three supported operating systems.
+- Upgraded ESLint to the supported 10.x line. The current local suite is 101
+  tests across 22 files with zero npm audit findings.
+
 ### Known gaps in this initial cut
 
 - npm/marketplace publication has not been run. One benchmark suite
@@ -180,12 +206,11 @@ not by inspection:
   frontend, backend) and public-claim-grade sample sizes (root `CLAUDE.md`
   sections 11-12) are not yet run; treat every current benchmark claim as
   smoke/exploratory, not public-claim grade.
-- `DefaultOptimizer`/`DefaultPlanner` (`packages/core/src/optimization/
-  optimizer.ts`, `packages/core/src/planning/planner.ts`) remain unit-tested
-  library code with no live caller — no claim is made that CCO's shipped
-  commands use Pareto/lexicographic execution-plan selection today.
-- The full `33_ACCEPTANCE_TEST_MATRIX.md` is not yet exhaustively mapped to
-  automated tests; unit coverage exists for the profile compiler (including
-  the section-9 fixture matrix), router (including the section-8
-  qualification corpus), settings-overlay monotonicity, config validation
-  and benchmark statistics.
+- The current release diff still requires the configured Linux/macOS/Windows
+  CI matrix after it is pushed. This local qualification environment directly
+  verifies Windows only.
+- The acceptance suite now covers compiler, graph, repository, router/planner,
+  launcher lifecycle, hook integrity/performance, privacy, deep audit,
+  benchmark isolation/statistics, and artifact installation. Live
+  multi-family statistical benchmarks and external publication remain the
+  deliberately unexecuted gates.

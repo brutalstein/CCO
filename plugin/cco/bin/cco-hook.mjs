@@ -38,18 +38,34 @@ import path2 from "node:path";
 import crypto from "node:crypto";
 async function ensureDir(dir) {
   await fs.mkdir(dir, { recursive: true, mode: 448 });
+  const stat = await fs.lstat(dir);
+  if (stat.isSymbolicLink() || !stat.isDirectory())
+    throw new Error(`refusing unsafe state directory: ${dir}`);
+  await fs.chmod(dir, 448).catch(() => void 0);
+}
+async function assertNotSymlink(filePath) {
+  const stat = await fs.lstat(filePath).catch((error) => {
+    if (error.code === "ENOENT")
+      return null;
+    throw error;
+  });
+  if (stat?.isSymbolicLink())
+    throw new Error(`refusing symbolic-link file target: ${filePath}`);
 }
 async function atomicWriteFile(filePath, content) {
   await ensureDir(path2.dirname(filePath));
+  await assertNotSymlink(filePath);
   const tmp = path2.join(path2.dirname(filePath), `.${path2.basename(filePath)}.${process.pid}.${crypto.randomBytes(6).toString("hex")}.tmp`);
   await fs.writeFile(tmp, content, { mode: 384 });
   await fs.rename(tmp, filePath);
+  await fs.chmod(filePath, 384).catch(() => void 0);
 }
 async function atomicWriteJson(filePath, value) {
   await atomicWriteFile(filePath, JSON.stringify(value, null, 2) + "\n");
 }
 async function readJsonIfExists(filePath) {
   try {
+    await assertNotSymlink(filePath);
     const raw = await fs.readFile(filePath, "utf8");
     return JSON.parse(raw);
   } catch {
@@ -58,7 +74,9 @@ async function readJsonIfExists(filePath) {
 }
 async function appendJsonl(filePath, value) {
   await ensureDir(path2.dirname(filePath));
+  await assertNotSymlink(filePath);
   await fs.appendFile(filePath, JSON.stringify(value) + "\n", { mode: 384 });
+  await fs.chmod(filePath, 384).catch(() => void 0);
 }
 function canonicalHash(value) {
   const json = canonicalStringify(value);
@@ -109,6 +127,7 @@ function encodeHookContext(event, text) {
 
 // packages/core/dist/types.js
 var SCHEMA_VERSION = 1;
+var CCO_VERSION = "1.0.0";
 var INTENT_CLASSIFIER_VERSION = "intent-1";
 
 // packages/core/dist/config/defaults.js
@@ -291,6 +310,49 @@ function redactObject(value) {
   return value;
 }
 
+// packages/core/dist/security/validator.js
+function major(version) {
+  return version.split(".")[0] ?? "";
+}
+function profileIntegrityHash(profile) {
+  return canonicalHash({ ...profile, integrityHash: void 0, id: void 0, createdAt: void 0 });
+}
+function validateProfileIntegrity(profile, runtimeVersion = CCO_VERSION) {
+  const issues = [];
+  if (profile.schemaVersion !== SCHEMA_VERSION) {
+    issues.push({ code: "PROFILE_SCHEMA_MISMATCH", message: "profile schema is incompatible with this runtime" });
+  }
+  if (!profile.ccoVersion || major(profile.ccoVersion) !== major(runtimeVersion)) {
+    issues.push({ code: "CCO_VERSION_MISMATCH", message: "CLI/plugin major versions do not match" });
+  }
+  if (profile.integrityHash !== profileIntegrityHash(profile)) {
+    issues.push({ code: "PROFILE_INTEGRITY", message: "profile integrity hash is invalid" });
+  }
+  return issues;
+}
+function validateHookArtifacts(profile, graph, runtimeVersion = CCO_VERSION) {
+  const issues = validateProfileIntegrity(profile, runtimeVersion);
+  if (!graph) {
+    issues.push({ code: "GRAPH_MISSING", message: "profile graph is missing" });
+    return issues;
+  }
+  if (graph.schemaVersion !== SCHEMA_VERSION || graph.inventoryFingerprint !== profile.inventoryId || graph.sourceHashes.repo !== profile.repoFingerprintId) {
+    issues.push({ code: "GRAPH_STALE", message: "profile and capability graph fingerprints do not match" });
+  }
+  const graphIds = new Set(graph.nodes.map((node) => node.id));
+  if (profile.runtimeCapabilityIds.some((id) => !graphIds.has(id))) {
+    issues.push({ code: "RUNTIME_CAPABILITY_MISSING", message: "profile references a capability absent from its graph" });
+  }
+  return issues;
+}
+
+// packages/core/dist/security/audit.js
+var DEFAULT_DEEP_AUDIT_OPTIONS = {
+  maxFiles: 250,
+  maxFileBytes: 128 * 1024,
+  maxTotalBytes: 1024 * 1024
+};
+
 // packages/core/dist/state/store.js
 import path3 from "node:path";
 import { promises as fs2 } from "node:fs";
@@ -303,6 +365,11 @@ var KIND_DIR = {
   profile: "profilesDir",
   evidence: "evidenceDir"
 };
+var SNAPSHOT_ID = /^[A-Za-z0-9][A-Za-z0-9._@-]{0,199}$/;
+function assertSnapshotId(id) {
+  if (!SNAPSHOT_ID.test(id))
+    throw new Error("invalid snapshot id");
+}
 var JsonStateStore = class {
   paths;
   constructor(overrideRoot) {
@@ -325,10 +392,12 @@ var JsonStateStore = class {
     await atomicWriteJson(this.configPath(), validated);
   }
   async getSnapshot(kind, id) {
+    assertSnapshotId(id);
     const dir = this.paths[KIND_DIR[kind]];
     return readJsonIfExists(path3.join(dir, `${id}.json`));
   }
   async putSnapshot(kind, value) {
+    assertSnapshotId(value.id);
     const dir = this.paths[KIND_DIR[kind]];
     await atomicWriteJson(path3.join(dir, `${value.id}.json`), value);
     return value.id;
@@ -706,12 +775,16 @@ var DefaultRuntimeRouter = class {
     const runtime = { graph: input.graph, runtimeCapabilityIds: input.runtimeCapabilityIds };
     const plans = new DefaultPlanner().candidates(intent, runtime, input.repo, input.evidence, input.agentTeamsEnabled);
     const selected = new DefaultOptimizer().selectPlan(plans, { agentTeamsEnabled: input.agentTeamsEnabled });
+    if ((input.nowMs ?? Date.now)() > deadline)
+      return this.abstain(input, "DEADLINE", intent.confidence, intent);
     if (selected.type === "native")
       return this.abstain(input, "NATIVE_BEST", intent.confidence, intent);
     const text = this.compactRouteText(selected, intent);
     if (estimateTokens(text) > input.config.routing.maxInjectedTokens) {
       return this.abstain(input, "CONTEXT_BUDGET", intent.confidence, intent);
     }
+    if ((input.nowMs ?? Date.now)() > deadline)
+      return this.abstain(input, "DEADLINE", intent.confidence, intent);
     const decision = {
       schemaVersion: SCHEMA_VERSION,
       sessionIdHash: sessionIdHash(input.sessionId),
@@ -754,7 +827,6 @@ var DefaultRuntimeRouter = class {
 
 // packages/core/dist/telemetry/events.js
 import crypto2 from "node:crypto";
-var CCO_VERSION = "1.0.0";
 var EVENT_VERSION = 1;
 function projectIdFromRoot(root) {
   return "project_" + canonicalHash(root);
@@ -821,6 +893,7 @@ async function loadHookConfig(store) {
   return validateConfig(raw).config;
 }
 async function main() {
+  const startedAt = Date.now();
   const event = EVENT_MAP[process.argv[2] ?? ""];
   if (!event) return 0;
   if (process.env.CCO_ACTIVE !== "1") return 0;
@@ -844,10 +917,13 @@ async function main() {
       "graph",
       graphSnapshotId(profile.inventoryId, profile.repoFingerprintId)
     );
+    const deadlineMs = Math.min(config.routing.hardDeadlineMs, 100);
+    if (validateHookArtifacts(profile, graph).length > 0 || Date.now() - startedAt >= deadlineMs) return 0;
     const claudeVersion = null;
     const projectId = projectIdFromRoot(hookInput.cwd);
     const evidence = { records: await store.listEvidence() };
     if (event === "SessionStart") {
+      if (hookInput.source && hookInput.source !== "startup" && hookInput.source !== "resume") return 0;
       const digest = sessionStartDigest({
         profile,
         graph,
@@ -858,7 +934,7 @@ async function main() {
       await store.appendEvent(
         buildEvent("session_start", claudeVersion, projectId, hookInput.sessionId, { profileId: profile.id })
       );
-      if (digest) process.stdout.write(JSON.stringify(encodeHookContext("SessionStart", digest)) + "\n");
+      if (digest && Date.now() - startedAt < deadlineMs) process.stdout.write(JSON.stringify(encodeHookContext("SessionStart", digest)) + "\n");
       return 0;
     }
     if (event === "UserPromptSubmit") {
@@ -877,7 +953,7 @@ async function main() {
           injected: hintText !== null
         })
       );
-      if (hintText) process.stdout.write(JSON.stringify(encodeHookContext("UserPromptSubmit", hintText)) + "\n");
+      if (hintText && Date.now() - startedAt < deadlineMs) process.stdout.write(JSON.stringify(encodeHookContext("UserPromptSubmit", hintText)) + "\n");
       return 0;
     }
     if (event === "SessionEnd") {

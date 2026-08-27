@@ -11,6 +11,25 @@ import { minimalFixture } from '@cco/claude-adapter';
 // KEEP decisions never fire for plugins that rely on keyword-based tagging instead of
 // explicit tags.
 describe('repo-affinity via auto-extracted tags', () => {
+  it('B06: builds byte-equivalent graphs regardless of inventory ordering', () => {
+    const inventory: InventorySnapshot = {
+      schemaVersion: 1,
+      id: 'inv_deterministic',
+      capturedAt: '2026-01-01T00:00:00.000Z',
+      claude: minimalFixture().environment,
+      plugins: [
+        { canonicalId: 'zeta@x', name: 'zeta', sourceType: 'marketplace', enabled: true },
+        { canonicalId: 'alpha@x', name: 'alpha', sourceType: 'marketplace', enabled: true }
+      ],
+      pluginDetails: {},
+      partial: false,
+      missingSources: []
+    };
+    const builder = new DefaultCapabilityGraphBuilder();
+    const reversed = { ...inventory, plugins: inventory.plugins.slice().reverse() };
+    expect(builder.build(inventory)).toEqual(builder.build(reversed));
+  });
+
   it('keeps a plugin whose auto-extracted domain tag matches the repo fingerprint domain', () => {
     const inventory: InventorySnapshot = {
       schemaVersion: 1,

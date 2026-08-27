@@ -3,6 +3,7 @@ export * from './config/defaults.js';
 export * from './config/validate.js';
 export * from './security/redact.js';
 export * from './security/validator.js';
+export * from './security/audit.js';
 export * from './state/store.js';
 export * from './inventory/service.js';
 export * from './graph/tags.js';

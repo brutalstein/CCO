@@ -43,11 +43,21 @@ export class NodeProcessLauncher implements ProcessLauncher {
       const forward = (signal: NodeJS.Signals) => {
         if (!child.killed) child.kill(signal);
       };
-      process.once('SIGINT', () => forward('SIGINT'));
-      process.once('SIGTERM', () => forward('SIGTERM'));
+      const onSigint = () => forward('SIGINT');
+      const onSigterm = () => forward('SIGTERM');
+      const cleanupListeners = () => {
+        process.removeListener('SIGINT', onSigint);
+        process.removeListener('SIGTERM', onSigterm);
+      };
+      process.once('SIGINT', onSigint);
+      process.once('SIGTERM', onSigterm);
 
-      child.once('error', reject);
+      child.once('error', (error) => {
+        cleanupListeners();
+        reject(error);
+      });
       child.once('exit', (code, signal) => {
+        cleanupListeners();
         resolve({ code: code ?? (signal ? 1 : 0), signal });
       });
     });

@@ -1,5 +1,6 @@
 import { validateOverlayMonotonic, type ValidatedOverlay } from '@cco/claude-adapter';
-import type { CompiledProfile, InventorySnapshot } from '../types.js';
+import { canonicalHash } from '@cco/platform';
+import { CCO_VERSION, SCHEMA_VERSION, type CapabilityGraph, type CompiledProfile, type InventorySnapshot } from '../types.js';
 
 export interface ValidationIssue {
   code: string;
@@ -15,9 +16,56 @@ export interface SafetyValidator {
   validateOverlay(overlay: ValidatedOverlay, baseline: InventorySnapshot): ValidationIssue[];
 }
 
+function major(version: string): string {
+  return version.split('.')[0] ?? '';
+}
+
+export function profileIntegrityHash(profile: CompiledProfile): string {
+  return canonicalHash({ ...profile, integrityHash: undefined, id: undefined, createdAt: undefined });
+}
+
+export function validateProfileIntegrity(profile: CompiledProfile, runtimeVersion = CCO_VERSION): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  if (profile.schemaVersion !== SCHEMA_VERSION) {
+    issues.push({ code: 'PROFILE_SCHEMA_MISMATCH', message: 'profile schema is incompatible with this runtime' });
+  }
+  if (!profile.ccoVersion || major(profile.ccoVersion) !== major(runtimeVersion)) {
+    issues.push({ code: 'CCO_VERSION_MISMATCH', message: 'CLI/plugin major versions do not match' });
+  }
+  if (profile.integrityHash !== profileIntegrityHash(profile)) {
+    issues.push({ code: 'PROFILE_INTEGRITY', message: 'profile integrity hash is invalid' });
+  }
+  return issues;
+}
+
+/** Hook-safe validation that needs no mutable inventory or Claude process. */
+export function validateHookArtifacts(
+  profile: CompiledProfile,
+  graph: CapabilityGraph | null,
+  runtimeVersion = CCO_VERSION
+): ValidationIssue[] {
+  const issues = validateProfileIntegrity(profile, runtimeVersion);
+  if (!graph) {
+    issues.push({ code: 'GRAPH_MISSING', message: 'profile graph is missing' });
+    return issues;
+  }
+  if (
+    graph.schemaVersion !== SCHEMA_VERSION ||
+    graph.inventoryFingerprint !== profile.inventoryId ||
+    graph.sourceHashes.repo !== profile.repoFingerprintId
+  ) {
+    issues.push({ code: 'GRAPH_STALE', message: 'profile and capability graph fingerprints do not match' });
+  }
+  const graphIds = new Set(graph.nodes.map((node) => node.id));
+  if (profile.runtimeCapabilityIds.some((id) => !graphIds.has(id))) {
+    issues.push({ code: 'RUNTIME_CAPABILITY_MISSING', message: 'profile references a capability absent from its graph' });
+  }
+  return issues;
+}
+
 export class DefaultSafetyValidator implements SafetyValidator {
   validateProfile(profile: CompiledProfile, baseline: InventorySnapshot): ValidationIssue[] {
-    const issues: ValidationIssue[] = [];
+    const issues: ValidationIssue[] = validateProfileIntegrity(profile);
     const baselineEnabled = new Set(baseline.plugins.filter((p) => p.enabled).map((p) => p.canonicalId));
 
     for (const id of profile.selected.enabledPluginIds) {

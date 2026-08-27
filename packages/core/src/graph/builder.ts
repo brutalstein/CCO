@@ -97,12 +97,12 @@ export class DefaultCapabilityGraphBuilder implements CapabilityGraphBuilder {
     }
 
     nodes.sort((a, b) => a.id.localeCompare(b.id));
-    edges.sort((a, b) => (a.from + a.to + a.type).localeCompare(b.from + b.to + b.type));
+    edges.sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to) || a.type.localeCompare(b.type));
 
     const graph: Omit<CapabilityGraph, 'inventoryFingerprint'> & { inventoryFingerprint: string } = {
       schemaVersion: SCHEMA_VERSION,
       inventoryFingerprint: inventory.id,
-      generatedAt: new Date().toISOString(),
+      generatedAt: inventory.capturedAt,
       nodes,
       edges,
       buildAlgorithmVersion: GRAPH_ALGORITHM_VERSION,

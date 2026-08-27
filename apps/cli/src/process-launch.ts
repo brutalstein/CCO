@@ -31,6 +31,18 @@ export interface LaunchResult {
   alwaysOnAfter: number;
 }
 
+export function conflictingSettingsArg(args: string[]): string | null {
+  const index = args.findIndex((arg) => arg === '--settings' || arg.startsWith('--settings='));
+  return index >= 0 ? args[index] : null;
+}
+
+export function isRecursiveClaudeBinary(binary: string): boolean {
+  const base = path.basename(binary).toLowerCase();
+  if (/^cco(?:\.(?:cmd|exe|ps1))?$/.test(base)) return true;
+  const entry = process.argv[1];
+  return path.isAbsolute(binary) && !!entry && path.resolve(binary) === path.resolve(entry);
+}
+
 function makeIntent(prompt: string): TaskIntent {
   return new DefaultIntentClassifier().classify({ prompt });
 }
@@ -48,6 +60,30 @@ export async function runLaunch(ctx: CliContext, options: LaunchOptions): Promis
   const env = await ctx.adapter.probe({ cwd: ctx.cwd });
   if (!env.found) {
     return { exitCode: 1, usedNativeFallback: true, reasons: ['claude binary not found: install Claude Code first'], alwaysOnBefore: 0, alwaysOnAfter: 0 };
+  }
+
+  const binary = env.resolvedBinaryPath ?? 'claude';
+  if (isRecursiveClaudeBinary(binary)) {
+    return { exitCode: 1, usedNativeFallback: true, reasons: ['refusing recursive launch: resolved Claude binary points to CCO'], alwaysOnBefore: 0, alwaysOnAfter: 0 };
+  }
+
+  const settingsConflict = conflictingSettingsArg(options.claudeArgs);
+  if (settingsConflict) {
+    const reason = `user supplied ${settingsConflict}; CCO will not guess how to merge settings overlays`;
+    if (options.strict) {
+      return { exitCode: 3, usedNativeFallback: true, reasons: [reason], alwaysOnBefore: 0, alwaysOnAfter: 0 };
+    }
+    const result = await ctx.launcher.spawnInteractive({ command: binary, args: options.claudeArgs, cwd: ctx.cwd, env: process.env });
+    return { exitCode: result.code, usedNativeFallback: true, reasons: [`fallback: ${reason}`], alwaysOnBefore: 0, alwaysOnAfter: 0 };
+  }
+
+  if (!env.features.settingsOverlay) {
+    const reason = 'installed Claude Code does not advertise --settings overlay support';
+    if (options.strict) {
+      return { exitCode: 3, usedNativeFallback: true, reasons: [reason], alwaysOnBefore: 0, alwaysOnAfter: 0 };
+    }
+    const result = await ctx.launcher.spawnInteractive({ command: binary, args: options.claudeArgs, cwd: ctx.cwd, env: process.env });
+    return { exitCode: result.code, usedNativeFallback: true, reasons: [`fallback: ${reason}`], alwaysOnBefore: 0, alwaysOnAfter: 0 };
   }
 
   const config = await ctx.store.readConfig();
@@ -88,7 +124,7 @@ export async function runLaunch(ctx: CliContext, options: LaunchOptions): Promis
   let exitCode: number;
 
   if (forcedFallback) {
-    const result = await ctx.launcher.spawnInteractive({ command: env.resolvedBinaryPath ?? 'claude', args: options.claudeArgs, cwd: ctx.cwd, env: process.env });
+    const result = await ctx.launcher.spawnInteractive({ command: binary, args: options.claudeArgs, cwd: ctx.cwd, env: process.env });
     exitCode = result.code;
   } else {
     const profileId = await ctx.store.putSnapshot('profile', profile);
@@ -107,7 +143,7 @@ export async function runLaunch(ctx: CliContext, options: LaunchOptions): Promis
 
     try {
       const result = await ctx.launcher.spawnInteractive({
-        command: env.resolvedBinaryPath ?? 'claude',
+        command: binary,
         args: [...options.claudeArgs, '--settings', overlayPath],
         cwd: ctx.cwd,
         env: launchEnv

@@ -1,6 +1,7 @@
 import type { PluginInventorySource, ClaudeEnvironment } from '@cco/claude-adapter';
 
 export const SCHEMA_VERSION = 1;
+export const CCO_VERSION = '1.0.0';
 export const OPTIMIZER_MODEL_VERSION = 'optimizer-1';
 export const GRAPH_ALGORITHM_VERSION = 'graph-1';
 export const INTENT_CLASSIFIER_VERSION = 'intent-1';
@@ -153,6 +154,7 @@ export interface ProfileDecision {
 
 export interface CompiledProfile {
   schemaVersion: number;
+  ccoVersion: string;
   id: string;
   createdAt: string;
   mode: OptimizationMode;

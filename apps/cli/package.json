@@ -1,6 +1,13 @@
 {
   "name": "claude-capability-optimizer",
   "version": "1.0.0",
+  "description": "Conservative session capability optimizer for Claude Code.",
+  "license": "Apache-2.0",
+  "author": "brutalstein",
+  "repository": { "type": "git", "url": "git+https://github.com/brutalstein/cco.git" },
+  "homepage": "https://github.com/brutalstein/cco#readme",
+  "engines": { "node": ">=20" },
+  "keywords": ["claude-code", "plugins", "optimization", "tokens"],
   "type": "module",
   "bin": { "cco": "dist/bundle.js" },
   "files": ["dist/bundle.js"],

@@ -35,7 +35,8 @@ export function parsePluginListJson(raw: string): PluginInventorySource[] {
       version: typeof e.version === 'string' ? e.version : undefined,
       sourceType: typeof e.source === 'string' ? e.source : typeof e.sourceType === 'string' ? e.sourceType : 'unknown',
       enabled: e.enabled === true,
-      managed: e.managed === true
+      managed: e.managed === true,
+      installPath: typeof e.installPath === 'string' ? e.installPath : undefined
     });
   }
   return out;

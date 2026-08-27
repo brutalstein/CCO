@@ -13,8 +13,8 @@ jobs:
         node-version: [20.x]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
@@ -22,14 +22,16 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: npm run build:plugin
+      - run: npm run package:release
+      - run: npm run verify:release
       - name: verify fake-claude fixture repo fingerprint
         run: node --input-type=module -e "import { DefaultRepoAnalyzer } from './packages/core/dist/index.js'; import { NodeProcessLauncher } from './packages/platform/dist/index.js'; const fp = await new DefaultRepoAnalyzer(new NodeProcessLauncher()).fingerprint('./fixtures/repositories/typescript-react'); if (!fp.frameworks.includes('react')) throw new Error('fixture regression'); console.log('ok');"
 
   schema-validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 20.x
       - run: npm ci

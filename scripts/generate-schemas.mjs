@@ -215,10 +215,11 @@ const profileSchema = {
   $id: 'https://cco.dev/schemas/profile.schema.json',
   title: 'CompiledProfile',
   type: 'object',
-  required: ['schemaVersion', 'id', 'createdAt', 'mode', 'inventoryId', 'repoFingerprintId', 'intentHash', 'baseline', 'selected', 'overlay', 'costProjection', 'quality', 'decisions', 'runtimeCapabilityIds', 'integrityHash'],
+  required: ['schemaVersion', 'ccoVersion', 'id', 'createdAt', 'mode', 'inventoryId', 'repoFingerprintId', 'intentHash', 'baseline', 'selected', 'overlay', 'costProjection', 'quality', 'decisions', 'runtimeCapabilityIds', 'integrityHash'],
   additionalProperties: false,
   properties: {
     schemaVersion: { type: 'integer', const: 1 },
+    ccoVersion: { type: 'string', pattern: '^\\d+\\.\\d+\\.\\d+' },
     id: { type: 'string', pattern: '^profile_' },
     createdAt: { type: 'string', format: 'date-time' },
     mode: { enum: ['observe', 'safe', 'aggressive', 'native'] },

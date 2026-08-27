@@ -16,12 +16,14 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "build:plugin": "node scripts/build-plugin.mjs",
-    "build:cli": "node scripts/build-cli.mjs"
+    "build:cli": "node scripts/build-cli.mjs",
+    "package:release": "node scripts/package-release.mjs",
+    "verify:release": "node scripts/verify-release.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "esbuild": "^0.28.2",
-    "eslint": "^9.15.0",
+    "eslint": "^10.9.1",
     "eslint-formatter-compact": "^9.0.1",
     "typescript": "^5.6.0",
     "vitest": "^4.1.11"

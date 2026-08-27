@@ -41,6 +41,8 @@ export interface PluginInventorySource {
   sourceType: string;
   enabled: boolean;
   managed?: boolean;
+  /** Claude-owned installed plugin directory; used only for bounded, non-executing deep audit. */
+  installPath?: string;
 }
 
 export interface PluginDetailComponent {
@@ -59,6 +61,22 @@ export interface PluginDetailsSource {
   tokenSource: 'anthropic_projected' | 'unknown';
   dependencies: string[];
   riskFlags: string[];
+}
+
+export interface PluginInstallRequest {
+  cwd: string;
+  env: ClaudeEnvironment;
+  marketplaceSource: string;
+  pluginName: string;
+  defaultMarketplaceName: string;
+}
+
+export interface PluginInstallResult {
+  ok: boolean;
+  alreadyInstalled: boolean;
+  canonicalId: string | null;
+  marketplaceName: string | null;
+  errors: string[];
 }
 
 export interface OverlayInput {
@@ -98,6 +116,7 @@ export interface BenchmarkInvocationSpec {
   prompt: string;
   model?: string;
   maxTurns?: number;
+  maxBudgetUsd?: number;
   outputFormat: 'json' | 'stream-json' | 'text';
   cwd: string;
   settingsFile?: string;
@@ -117,6 +136,7 @@ export interface ClaudeAdapter {
   probe(ctx: ProbeContext): Promise<ClaudeEnvironment>;
   listPlugins(ctx: ClaudeContext): Promise<PluginInventorySource[]>;
   pluginDetails(id: string, ctx: ClaudeContext): Promise<PluginDetailsSource | null>;
+  ensurePluginInstalled(request: PluginInstallRequest): Promise<PluginInstallResult>;
   buildSettingsOverlay(input: OverlayInput, outPath: string | null): Promise<ValidatedOverlay>;
   validateOverlay(overlay: ValidatedOverlay, baseline: PluginInventorySource[]): ValidationResult;
   normalizeHookInput(event: HookEvent, raw: unknown): HookInput;
