@@ -37,7 +37,7 @@ export function conflictingSettingsArg(args: string[]): string | null {
 }
 
 export function isRecursiveClaudeBinary(binary: string): boolean {
-  const base = path.basename(binary).toLowerCase();
+  const base = path.basename(binary.replaceAll('\\', '/')).toLowerCase();
   if (/^cco(?:\.(?:cmd|exe|ps1))?$/.test(base)) return true;
   const entry = process.argv[1];
   return path.isAbsolute(binary) && !!entry && path.resolve(binary) === path.resolve(entry);
