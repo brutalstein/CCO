@@ -147,6 +147,22 @@ not by inspection:
   analyze` via the actual Windows npm shim, against a live Claude Code
   install.
 
+### Fixed (evidence pipeline wiring)
+
+- `EvidenceRecord`/`EvidenceIndex` were fully implemented and unit-tested
+  but no real command ever populated them: `cco run`/`task`
+  (`process-launch.ts`), `cco analyze`, `cco benchmark run`'s own candidate
+  compile, the CLI's `__hook` command, and — the one that actually matters
+  for real installed-plugin sessions — the plugin's bundled hook entry
+  (`scripts/plugin-hook-entry.mjs`) all hardcoded
+  `evidence: { records: [] }`. This made `PRUNE_NONINFERIOR_REDUNDANT`
+  permanently unreachable in aggressive mode and silently zeroed the
+  router's `evidencePrior` scoring factor on every prompt. Added
+  `JsonStateStore.listEvidence()` and wired all six call sites to it.
+  Verified with new unit tests (`state-store.test.ts`, an aggressive-mode
+  suite in `profile-compiler.test.ts`) and live, against 3 real
+  `EvidenceRecord`s already on this machine from prior live benchmark runs.
+
 ### Known gaps in this initial cut
 
 - npm/marketplace publication has not been run. One benchmark suite
@@ -156,14 +172,10 @@ not by inspection:
   frontend, backend) and public-claim-grade sample sizes (root `CLAUDE.md`
   sections 11-12) are not yet run; treat every current benchmark claim as
   smoke/exploratory, not public-claim grade.
-- `DefaultQualityGate`/`EvidenceIndex` (`packages/core/src/quality/gate.ts`)
-  is implemented and unit-reachable but not wired into any live code path —
-  `cco run`/`cco task`/`cco benchmark` all pass `evidence: { records: [] }`
-  unconditionally, and `optimization.quality.minExploratoryTrialsPerArm` /
-  `publicClaimTrialsPerArm` config values are validated by schema but never
-  read at runtime. Aggressive-mode non-inferiority pruning
-  (`PRUNE_NONINFERIOR_REDUNDANT`) is therefore currently unreachable from
-  any real session.
+- `DefaultOptimizer`/`DefaultPlanner` (`packages/core/src/optimization/
+  optimizer.ts`, `packages/core/src/planning/planner.ts`) remain unit-tested
+  library code with no live caller — no claim is made that CCO's shipped
+  commands use Pareto/lexicographic execution-plan selection today.
 - `npm audit` reports 5 pre-existing vulnerabilities (3 moderate, 1 high, 1
   critical) in the esbuild/vite/vitest transitive dev-tooling chain —
   build/test tooling only, not shipped runtime code.
