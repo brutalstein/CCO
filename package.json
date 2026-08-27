@@ -15,7 +15,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
-    "build:plugin": "node scripts/build-plugin.mjs"
+    "build:plugin": "node scripts/build-plugin.mjs",
+    "build:cli": "node scripts/build-cli.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

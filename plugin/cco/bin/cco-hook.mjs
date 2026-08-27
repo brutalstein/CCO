@@ -240,8 +240,18 @@ function validateConfig(input) {
   if (optimization) {
     if (optimization.modelOptimization !== void 0)
       merged.optimization.modelOptimization = Boolean(optimization.modelOptimization);
-    if (optimization.safePruneAffinityMax !== void 0)
-      merged.optimization.safePruneAffinityMax = optimization.safePruneAffinityMax;
+    if (optimization.safePruneAffinityMax !== void 0) {
+      if (optimization.safePruneAffinityMax < 0 || optimization.safePruneAffinityMax > 1) {
+        errors.push("optimization.safePruneAffinityMax out of safe range [0, 1]");
+      } else
+        merged.optimization.safePruneAffinityMax = optimization.safePruneAffinityMax;
+    }
+    if (optimization.metadataConfidenceMin !== void 0) {
+      if (optimization.metadataConfidenceMin < 0 || optimization.metadataConfidenceMin > 1) {
+        errors.push("optimization.metadataConfidenceMin out of safe range [0, 1]");
+      } else
+        merged.optimization.metadataConfidenceMin = optimization.metadataConfidenceMin;
+    }
   }
   return { ok: errors.length === 0, config: merged, errors };
 }

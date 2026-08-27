@@ -4,7 +4,9 @@
 // live `claude plugin validate --strict` / npm publish steps are left to CI, which
 // has the tooling (cyclonedx, the Claude CLI, npm registry credentials) this local
 // script does not assume is present. Run `npm run build && npm run build:plugin`
-// before this script so apps/cli/dist and plugin/cco/bin are up to date.
+// before this script so plugin/cco/bin is up to date; this script builds the CLI's
+// own bundle itself since npm pack depends on apps/cli/dist/bundle.js existing
+// (apps/cli/package.json ships no @cco/* dependencies — they must be inlined).
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -38,8 +40,12 @@ async function main() {
   const pkgJson = JSON.parse(await fs.readFile(path.join(root, 'apps', 'cli', 'package.json'), 'utf8'));
   const version = pkgJson.version;
 
-  console.log(`packaging claude-capability-optimizer ${version}`);
   const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+
+  console.log('building self-contained CLI bundle');
+  execFileSync(npmCmd, ['run', 'build:cli'], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
+
+  console.log(`packaging claude-capability-optimizer ${version}`);
   execFileSync(npmCmd, ['pack', '--pack-destination', outDir], {
     cwd: path.join(root, 'apps', 'cli'),
     stdio: 'inherit',
