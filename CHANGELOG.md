@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file. Format
 loosely follows [Keep a Changelog](https://keepachangelog.com/), versioning
 follows the rules in `25_INSTALLATION_DISTRIBUTION_RELEASE.md` section 5.
 
-## [1.0.0] - Unreleased
+## [1.0.0] - 2026-08-27
 
 ### Added
 
@@ -199,18 +199,19 @@ not by inspection:
 
 ### Known gaps in this initial cut
 
-- npm/marketplace publication has not been run. One benchmark suite
+- Distribution artifacts are qualified for npm and GitHub Release; registry
+  and release availability are verified separately after upload. One benchmark suite
   (`simple-utility-v1`) has been run against a live `claude` binary
   (`benchmarks/published/`) — smoke-level only (2 trials/arm, one task
   family). Additional task families (debug/fix, tests, documentation,
   frontend, backend) and public-claim-grade sample sizes (root `CLAUDE.md`
   sections 11-12) are not yet run; treat every current benchmark claim as
   smoke/exploratory, not public-claim grade.
-- The current release diff still requires the configured Linux/macOS/Windows
-  CI matrix after it is pushed. This local qualification environment directly
-  verifies Windows only.
+- Release candidate `c05352a` passed the configured Linux/macOS/Windows CI
+  matrix (run `33031523306`). Only Windows has also been exercised manually
+  against a real `claude` binary.
 - The acceptance suite now covers compiler, graph, repository, router/planner,
   launcher lifecycle, hook integrity/performance, privacy, deep audit,
   benchmark isolation/statistics, and artifact installation. Live
-  multi-family statistical benchmarks and external publication remain the
-  deliberately unexecuted gates.
+  multi-family statistical benchmarks remain a deliberately unexecuted
+  evidence gate; publication does not establish benchmark quality.
