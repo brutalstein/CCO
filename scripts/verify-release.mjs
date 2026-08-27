@@ -73,8 +73,10 @@ async function checkSchemasWellFormed() {
 }
 
 function archiveEntries(filePath) {
-  const tar = process.platform === 'win32' ? 'tar.exe' : 'tar';
-  return execFileSync(tar, ['-tf', filePath], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean);
+  const command = filePath.endsWith('.zip') && process.platform !== 'win32'
+    ? ['unzip', ['-Z1', filePath]]
+    : [process.platform === 'win32' ? 'tar.exe' : 'tar', ['-tf', filePath]];
+  return execFileSync(command[0], command[1], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean);
 }
 
 async function checkArtifactContents() {
